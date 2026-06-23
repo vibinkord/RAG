@@ -62,11 +62,13 @@ public class TextChunkingService {
                     List<String> subChunks = splitLongSentence(nextSentence, CHUNK_SIZE, OVERLAP);
                     for (String subChunk : subChunks) {
                         if (!subChunk.trim().isEmpty()) {
+                            log.info("Creating chunk for pageId={}, url={}", page.getId(), page.getUrl());
                             createdChunks.add(Chunk.builder()
-                                    .pageId(page.getId())
-                                    .chunkIndex(chunkIndex++)
+                                    .page(page)
                                     .sourceUrl(page.getUrl())
-                                    .chunkText(subChunk.trim())
+                                    .chunkIndex(chunkIndex++)
+                                    .content(subChunk.trim())
+                                    .tokenCount(estimateTokenCount(subChunk))
                                     .build());
                         }
                     }
@@ -95,11 +97,13 @@ public class TextChunkingService {
             
             String chunkText = currentChunkBuilder.toString().trim();
             if (!chunkText.isEmpty()) {
+                log.info("Creating chunk for pageId={}, url={}", page.getId(), page.getUrl());
                 createdChunks.add(Chunk.builder()
-                        .pageId(page.getId())
-                        .chunkIndex(chunkIndex++)
+                        .page(page)
                         .sourceUrl(page.getUrl())
-                        .chunkText(chunkText)
+                        .chunkIndex(chunkIndex++)
+                        .content(chunkText)
+                        .tokenCount(estimateTokenCount(chunkText))
                         .build());
             }
             
@@ -132,18 +136,19 @@ public class TextChunkingService {
      * creates new chunks, and persists them.
      *
      * @param websiteId the ID of the website to process
-     * @return the list of all created Chunk entities across all pages
+     * @return the total number of chunks created and saved
      */
     @Transactional
-    public List<Chunk> processAllPages(Long websiteId) {
-        log.info("Processing document chunking for websiteId: {}", websiteId);
+    public int processAllPages(Long websiteId) {
+        log.info("STARTING CHUNK GENERATION");
         List<Page> pages = pageRepository.findByWebsiteId(websiteId);
+        log.info("Pages retrieved for chunking: {}", pages.size());
         if (pages.isEmpty()) {
             log.info("No pages found for websiteId: {}", websiteId);
-            return Collections.emptyList();
+            log.info("Chunking Completed");
+            return 0;
         }
 
-        List<Chunk> allChunks = new ArrayList<>();
         List<Long> pageIds = new ArrayList<>();
 
         for (Page page : pages) {
@@ -153,16 +158,24 @@ public class TextChunkingService {
         // Delete existing chunks for all pages of this website first
         chunkRepository.deleteByPageIdIn(pageIds);
 
+        int totalChunksSaved = 0;
+
         // Generate and save chunks for each page
         for (Page page : pages) {
+            log.info("Processing Page: {}", page.getTitle());
             List<Chunk> pageChunks = createChunksForPage(page);
+            log.info("Generated {} chunks", pageChunks.size());
             if (!pageChunks.isEmpty()) {
-                allChunks.addAll(chunkRepository.saveAll(pageChunks));
+                List<Chunk> saved = chunkRepository.saveAll(pageChunks);
+                log.info("Saved {} chunks", saved.size());
+                totalChunksSaved += saved.size();
+            } else {
+                log.info("Saved 0 chunks");
             }
         }
 
-        log.info("Successfully created and saved {} chunks for websiteId: {}", allChunks.size(), websiteId);
-        return allChunks;
+        log.info("Chunking Completed");
+        return totalChunksSaved;
     }
 
     private List<String> splitIntoSentences(String content) {
@@ -194,5 +207,13 @@ public class TextChunkingService {
             }
         }
         return chunks;
+    }
+
+    private int estimateTokenCount(String text) {
+        if (text == null || text.trim().isEmpty()) {
+            return 0;
+        }
+        // Approximate token count: 4 characters per token
+        return (int) Math.ceil(text.length() / 4.0);
     }
 }

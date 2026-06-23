@@ -11,4 +11,5 @@ public interface ChunkRepository extends JpaRepository<Chunk, Long> {
     List<Chunk> findByPageId(Long pageId);
     void deleteByPageId(Long pageId);
     void deleteByPageIdIn(List<Long> pageIds);
+    List<Chunk> findByPageWebsiteId(Long websiteId);
 }

@@ -2,6 +2,7 @@ package com.vibin.ragbot.service;
 
 import com.vibin.ragbot.dto.CreateWebsiteRequest;
 import com.vibin.ragbot.dto.CreateWebsiteResponse;
+import com.vibin.ragbot.entity.CrawlStatus;
 import com.vibin.ragbot.entity.Website;
 import com.vibin.ragbot.repository.WebsiteRepository;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +31,7 @@ public class WebsiteService {
             return CreateWebsiteResponse.builder()
                     .id(website.getId())
                     .url(website.getUrl())
-                    .status(website.getStatus())
+                    .status(website.getStatus().name())
                     .message("Website already exists")
                     .build();
         }
@@ -38,7 +39,7 @@ public class WebsiteService {
         // Create new website entity with specified requirements
         Website newWebsite = Website.builder()
                 .url(url)
-                .status("PROCESSING")
+                .status(CrawlStatus.PENDING)
                 .pagesCrawled(0)
                 .chunksCreated(0)
                 .createdAt(LocalDateTime.now())
@@ -50,7 +51,7 @@ public class WebsiteService {
         return CreateWebsiteResponse.builder()
                 .id(savedWebsite.getId())
                 .url(savedWebsite.getUrl())
-                .status(savedWebsite.getStatus())
+                .status(savedWebsite.getStatus().name())
                 .message("Website successfully created")
                 .build();
     }

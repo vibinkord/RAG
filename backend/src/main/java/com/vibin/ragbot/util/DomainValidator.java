@@ -1,8 +1,10 @@
 package com.vibin.ragbot.util;
 
+import lombok.extern.slf4j.Slf4j;
 import java.net.URI;
 import java.net.URISyntaxException;
 
+@Slf4j
 public class DomainValidator {
 
     private DomainValidator() {}
@@ -33,6 +35,7 @@ public class DomainValidator {
     }
     
     public static String normalizeUrl(String url) {
+        log.info("Normalizing URL: {}", url);
         if (url == null) return null;
         int hashIndex = url.indexOf('#');
         if (hashIndex != -1) {
@@ -41,6 +44,7 @@ public class DomainValidator {
         if (url.endsWith("/")) {
             url = url.substring(0, url.length() - 1);
         }
+        log.info("Normalized result: {}", url);
         return url;
     }
 }

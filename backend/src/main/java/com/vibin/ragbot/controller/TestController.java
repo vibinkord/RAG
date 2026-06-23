@@ -1,5 +1,6 @@
 package com.vibin.ragbot.controller;
 
+import com.vibin.ragbot.service.chunking.TextChunkingService;
 import com.vibin.ragbot.service.crawler.WebsiteCrawlerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,6 +15,7 @@ import java.util.List;
 public class TestController {
 
     private final WebsiteCrawlerService crawlerService;
+    private final TextChunkingService chunkingService;
 
     @GetMapping("/ping")
     public String ping() {
@@ -23,5 +25,11 @@ public class TestController {
     @GetMapping("/crawl")
     public List<String> testCrawl() {
         return crawlerService.crawlWebsite(1L, "https://claysys.com");
+    }
+
+    @GetMapping("/chunk")
+    public String testChunk() {
+        chunkingService.processAllPages(1L);
+        return "Chunking completed for website 1";
     }
 }

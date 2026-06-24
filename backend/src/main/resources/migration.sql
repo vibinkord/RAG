@@ -40,3 +40,38 @@ CREATE TABLE IF NOT EXISTS embeddings (
 
 -- Create index for vector similarity search
 CREATE INDEX IF NOT EXISTS idx_embedding_chunk_id ON embeddings(chunk_id);
+
+-- Convert content columns from OID to TEXT if they were created as OIDs under Hibernate's @Lob annotation
+DO $$
+DECLARE
+    v_chunk_type text;
+    v_page_type text;
+BEGIN
+    -- Check type of chunks.content
+    SELECT data_type INTO v_chunk_type 
+    FROM information_schema.columns 
+    WHERE table_name = 'chunks' AND column_name = 'content';
+    
+    IF v_chunk_type = 'oid' OR v_chunk_type = 'USER-DEFINED' THEN
+        ALTER TABLE chunks ADD COLUMN temp_content TEXT;
+        UPDATE chunks SET temp_content = convert_from(lo_get(content::oid), 'UTF8') WHERE content IS NOT NULL;
+        ALTER TABLE chunks DROP COLUMN content;
+        ALTER TABLE chunks RENAME COLUMN temp_content TO content;
+        ALTER TABLE chunks ALTER COLUMN content SET NOT NULL;
+        RAISE NOTICE 'Converted chunks.content from OID to TEXT';
+    END IF;
+
+    -- Check type of pages.content
+    SELECT data_type INTO v_page_type 
+    FROM information_schema.columns 
+    WHERE table_name = 'pages' AND column_name = 'content';
+    
+    IF v_page_type = 'oid' OR v_page_type = 'USER-DEFINED' THEN
+        ALTER TABLE pages ADD COLUMN temp_content TEXT;
+        UPDATE pages SET temp_content = convert_from(lo_get(content::oid), 'UTF8') WHERE content IS NOT NULL;
+        ALTER TABLE pages DROP COLUMN content;
+        ALTER TABLE pages RENAME COLUMN temp_content TO content;
+        RAISE NOTICE 'Converted pages.content from OID to TEXT';
+    END IF;
+END;
+$$;

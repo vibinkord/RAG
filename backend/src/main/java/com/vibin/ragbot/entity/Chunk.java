@@ -45,7 +45,6 @@ public class Chunk {
     @Column(name = "chunk_index", nullable = false)
     private Integer chunkIndex;
 
-    @Lob
     @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
 

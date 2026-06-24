@@ -9,6 +9,7 @@ import com.vibin.ragbot.repository.ChunkRepository;
 import com.vibin.ragbot.repository.EmbeddingRepository;
 import com.vibin.ragbot.repository.WebsiteRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationContext;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -28,6 +29,7 @@ public class EmbeddingGenerationService {
     private final EmbeddingRepository embeddingRepository;
     private final OllamaEmbeddingService ollamaEmbeddingService;
     private final TransactionTemplate transactionTemplate;
+    private final ApplicationContext applicationContext;
 
     // Track status of jobs in-memory
     private final Map<Long, String> activeJobs = new ConcurrentHashMap<>();
@@ -39,12 +41,14 @@ public class EmbeddingGenerationService {
             ChunkRepository chunkRepository,
             EmbeddingRepository embeddingRepository,
             OllamaEmbeddingService ollamaEmbeddingService,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            ApplicationContext applicationContext) {
         this.websiteRepository = websiteRepository;
         this.chunkRepository = chunkRepository;
         this.embeddingRepository = embeddingRepository;
         this.ollamaEmbeddingService = ollamaEmbeddingService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.applicationContext = applicationContext;
     }
 
     /**
@@ -63,8 +67,8 @@ public class EmbeddingGenerationService {
         }
 
         activeJobs.put(websiteId, "IN_PROGRESS");
-        // Trigger async execution
-        generateEmbeddingsAsync(websiteId);
+        // Trigger async execution via proxy to ensure @Async is intercepted
+        applicationContext.getBean(EmbeddingGenerationService.class).generateEmbeddingsAsync(websiteId);
     }
 
     /**
@@ -75,18 +79,19 @@ public class EmbeddingGenerationService {
         log.info("Starting background embedding generation for website ID: {}", websiteId);
         try {
             // Load all chunks for the website
-            List<Chunk> allChunks = chunkRepository.findByPageWebsiteId(websiteId);
+            List<Chunk> chunks = chunkRepository.findByPageWebsiteId(websiteId);
+            log.info("Loaded {} chunks", chunks.size());
             
             // Filter out chunks that already have embeddings
             List<Chunk> chunksToProcess = new ArrayList<>();
-            for (Chunk chunk : allChunks) {
+            for (Chunk chunk : chunks) {
                 if (!embeddingRepository.existsByChunkId(chunk.getId())) {
                     chunksToProcess.add(chunk);
                 }
             }
 
             log.info("Found {} chunks total. {} need embeddings for website ID: {}", 
-                    allChunks.size(), chunksToProcess.size(), websiteId);
+                    chunks.size(), chunksToProcess.size(), websiteId);
 
             // Process chunks in batches of 50
             for (int i = 0; i < chunksToProcess.size(); i += BATCH_SIZE) {
@@ -94,8 +99,10 @@ public class EmbeddingGenerationService {
                 List<Embedding> batchEmbeddings = new ArrayList<>();
 
                 for (Chunk chunk : batch) {
+                    log.info("Processing chunk {}", chunk.getId());
                     try {
                         float[] vector = ollamaEmbeddingService.generateEmbedding(chunk.getContent());
+                        log.info("Embedding generated for chunk {}", chunk.getId());
                         Embedding embedding = Embedding.builder()
                                 .chunkId(chunk.getId())
                                 .embedding(vector)
@@ -113,12 +120,23 @@ public class EmbeddingGenerationService {
                     transactionTemplate.executeWithoutResult(status -> {
                         embeddingRepository.saveAll(batchEmbeddings);
                     });
+                    for (Embedding embedding : batchEmbeddings) {
+                        log.info("Embedding saved for chunk {}", embedding.getChunkId());
+                    }
+                    log.info("Embedding count now {}", embeddingRepository.count());
                     log.info("Committed batch of {} embeddings for website ID: {}", batchEmbeddings.size(), websiteId);
                 }
             }
 
-            activeJobs.put(websiteId, "COMPLETED");
-            log.info("Background embedding generation completed successfully for website ID: {}", websiteId);
+            long finalEmbeddedCount = embeddingRepository.countByWebsiteId(websiteId);
+            if (finalEmbeddedCount == chunks.size()) {
+                activeJobs.put(websiteId, "COMPLETED");
+                log.info("Background embedding generation completed successfully for website ID: {}", websiteId);
+            } else {
+                activeJobs.put(websiteId, "FAILED");
+                log.warn("Background embedding generation finished but not all chunks were embedded. Website ID: {}. Embedded: {}/{}",
+                        websiteId, finalEmbeddedCount, chunks.size());
+            }
         } catch (Exception e) {
             activeJobs.put(websiteId, "FAILED");
             log.error("Background embedding generation failed for website ID: {}. Error: {}", websiteId, e.getMessage(), e);
@@ -147,6 +165,8 @@ public class EmbeddingGenerationService {
             } else {
                 status = "NOT_STARTED";
             }
+        } else if ("COMPLETED".equals(status) && embeddedChunks < totalChunks) {
+            status = "FAILED";
         }
 
         return EmbeddingStatusResponse.builder()

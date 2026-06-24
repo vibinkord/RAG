@@ -18,4 +18,7 @@ public class AnswerResponse {
     private Double topSimilarityScore;
     private List<SourceDto> sources;
     private List<String> chunksUsed;
+    private Long retrievalLatencyMs;
+    private Long generationLatencyMs;
+    private Long totalLatencyMs;
 }

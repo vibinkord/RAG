@@ -24,8 +24,9 @@ public class TextChunkingService {
     private final PageRepository pageRepository;
     private final ChunkRepository chunkRepository;
 
-    private static final int CHUNK_SIZE = 800;
-    private static final int OVERLAP = 150;
+    private static final int CHUNK_SIZE = 1000;
+    private static final int OVERLAP = 200;
+    private static final int MIN_CHUNK_LENGTH = 100;
 
     private static final Set<String> LOW_VALUE_PATTERNS = Set.of(
             "view all",
@@ -49,8 +50,8 @@ public class TextChunkingService {
         }
         String trimmed = content.trim();
         
-        // 1. Length < 100 characters
-        if (trimmed.length() < 100) {
+        // 1. Minimum chunk length validation
+        if (trimmed.length() < MIN_CHUNK_LENGTH) {
             return true;
         }
         
@@ -65,8 +66,68 @@ public class TextChunkingService {
         if (LOW_VALUE_PATTERNS.contains(lower)) {
             return true;
         }
+
+        // 4. Matches navigation/footer fragments
+        if (isNavigationOrFooterFragment(trimmed)) {
+            return true;
+        }
         
         return false;
+    }
+
+    private boolean isNavigationOrFooterFragment(String content) {
+        String lower = content.toLowerCase();
+        if (lower.contains("copyright") || lower.contains("all rights reserved") || lower.contains("©")) {
+            return true;
+        }
+        String[] navKeywords = {"home", "about", "contact", "privacy policy", "terms of service", "terms of use", "careers", "sign in", "sign up", "login", "register", "faq", "help", "support", "search", "sitemap", "navigation", "menu"};
+        int matchCount = 0;
+        for (String keyword : navKeywords) {
+            if (lower.contains(keyword)) {
+                matchCount++;
+            }
+        }
+        if (matchCount >= 4 && content.length() < 300) {
+            return true;
+        }
+        return false;
+    }
+
+    private String determinePageType(String url) {
+        if (url == null || url.trim().isEmpty()) {
+            return "general";
+        }
+        try {
+            java.net.URL parsedUrl = new java.net.URL(url);
+            String path = parsedUrl.getPath().toLowerCase();
+            if (path.isEmpty() || "/".equals(path)) {
+                return "home";
+            }
+            if (path.contains("/blog")) {
+                return "blog";
+            }
+            if (path.contains("/docs") || path.contains("/documentation") || path.contains("/help")) {
+                return "documentation";
+            }
+            if (path.contains("/about")) {
+                return "about";
+            }
+            if (path.contains("/faq")) {
+                return "faq";
+            }
+            if (path.contains("/pricing")) {
+                return "pricing";
+            }
+            if (path.contains("/product") || path.contains("/service")) {
+                return "product";
+            }
+            if (path.contains("/contact")) {
+                return "contact";
+            }
+            return "general";
+        } catch (Exception e) {
+            return "general";
+        }
     }
 
     /**
@@ -117,6 +178,8 @@ public class TextChunkingService {
                                     .chunkIndex(chunkIndex++)
                                     .content(trimmedSubChunk)
                                     .tokenCount(estimateTokenCount(trimmedSubChunk))
+                                    .title(page.getTitle())
+                                    .pageType(determinePageType(page.getUrl()))
                                     .build());
                         }
                     }
@@ -155,6 +218,8 @@ public class TextChunkingService {
                             .chunkIndex(chunkIndex++)
                             .content(chunkText)
                             .tokenCount(estimateTokenCount(chunkText))
+                            .title(page.getTitle())
+                            .pageType(determinePageType(page.getUrl()))
                             .build());
                 }
             }
@@ -211,14 +276,25 @@ public class TextChunkingService {
         chunkRepository.deleteByPageIdIn(pageIds);
 
         int totalChunksSaved = 0;
+        Set<String> seenChunks = new java.util.HashSet<>();
 
         // Generate and save chunks for each page
         for (Page page : pages) {
             log.info("Processing Page: {}", page.getTitle());
             List<Chunk> pageChunks = createChunksForPage(page);
-            log.info("Generated {} chunks", pageChunks.size());
-            if (!pageChunks.isEmpty()) {
-                List<Chunk> saved = chunkRepository.saveAll(pageChunks);
+            List<Chunk> uniquePageChunks = new ArrayList<>();
+            for (Chunk chunk : pageChunks) {
+                String normalizedContent = chunk.getContent().toLowerCase().trim();
+                if (!seenChunks.contains(normalizedContent)) {
+                    seenChunks.add(normalizedContent);
+                    uniquePageChunks.add(chunk);
+                } else {
+                    log.info("Skipped duplicate chunk in website: {}", chunk.getContent().substring(0, Math.min(50, chunk.getContent().length())));
+                }
+            }
+            log.info("Generated {} unique chunks", uniquePageChunks.size());
+            if (!uniquePageChunks.isEmpty()) {
+                List<Chunk> saved = chunkRepository.saveAll(uniquePageChunks);
                 log.info("Saved {} chunks", saved.size());
                 totalChunksSaved += saved.size();
             } else {

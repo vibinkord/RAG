@@ -51,6 +51,12 @@ public class Chunk {
     @Column(name = "token_count")
     private Integer tokenCount;
 
+    @Column(name = "title")
+    private String title;
+
+    @Column(name = "page_type")
+    private String pageType;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

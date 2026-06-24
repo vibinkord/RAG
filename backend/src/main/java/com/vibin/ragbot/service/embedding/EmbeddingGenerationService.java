@@ -97,21 +97,35 @@ public class EmbeddingGenerationService {
             for (int i = 0; i < chunksToProcess.size(); i += BATCH_SIZE) {
                 List<Chunk> batch = chunksToProcess.subList(i, Math.min(i + BATCH_SIZE, chunksToProcess.size()));
                 List<Embedding> batchEmbeddings = new ArrayList<>();
-
+                List<String> contents = new ArrayList<>();
                 for (Chunk chunk : batch) {
-                    log.info("Processing chunk {}", chunk.getId());
-                    try {
-                        float[] vector = ollamaEmbeddingService.generateEmbedding(chunk.getContent());
-                        log.info("Embedding generated for chunk {}", chunk.getId());
-                        Embedding embedding = Embedding.builder()
+                    contents.add(chunk.getContent());
+                }
+
+                try {
+                    log.info("Generating batch embeddings for {} chunks", batch.size());
+                    List<float[]> vectors = ollamaEmbeddingService.generateEmbeddings(contents);
+                    for (int j = 0; j < batch.size(); j++) {
+                        Chunk chunk = batch.get(j);
+                        float[] vector = vectors.get(j);
+                        batchEmbeddings.add(Embedding.builder()
                                 .chunkId(chunk.getId())
                                 .embedding(vector)
-                                .build();
-                        batchEmbeddings.add(embedding);
-                    } catch (Exception e) {
-                        log.error("Failed to generate embedding for chunk ID: {} in website ID: {}. Error: {}",
-                                chunk.getId(), websiteId, e.getMessage());
-                        // Continue to other chunks in this batch
+                                .build());
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to generate batch embeddings, falling back to individual generation. Error: {}", e.getMessage());
+                    for (Chunk chunk : batch) {
+                        try {
+                            float[] vector = ollamaEmbeddingService.generateEmbedding(chunk.getContent());
+                            batchEmbeddings.add(Embedding.builder()
+                                    .chunkId(chunk.getId())
+                                    .embedding(vector)
+                                    .build());
+                        } catch (Exception ex) {
+                            log.error("Failed to generate fallback embedding for chunk ID: {} in website ID: {}. Error: {}",
+                                    chunk.getId(), websiteId, ex.getMessage());
+                        }
                     }
                 }
 

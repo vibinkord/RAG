@@ -76,6 +76,54 @@ public class OllamaEmbeddingService {
     }
 
     /**
+     * Generates vector embeddings for a list of texts in a single batch request to Ollama.
+     * Incorporates retry logic with exponential backoff.
+     */
+    public List<float[]> generateEmbeddings(List<String> texts) {
+        if (texts == null || texts.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+
+        String url = ollamaApiUrl + "/api/embed";
+        OllamaBatchEmbedRequest request = new OllamaBatchEmbedRequest(MODEL_NAME, texts);
+
+        long backoffMs = INITIAL_BACKOFF_MS;
+        Exception lastException = null;
+
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                log.debug("Calling Ollama API for batch of size {} (attempt {}/{}): {}", 
+                        texts.size(), attempt, MAX_ATTEMPTS, url);
+                OllamaEmbedResponse response = restTemplate.postForObject(url, request, OllamaEmbedResponse.class);
+                
+                if (response != null && response.getEmbeddings() != null && !response.getEmbeddings().isEmpty()) {
+                    return response.getEmbeddings();
+                } else {
+                    throw new RuntimeException("Ollama returned an empty embedding list for batch");
+                }
+            } catch (Exception e) {
+                lastException = e;
+                log.warn("Ollama batch embedding generation failed on attempt {}/{} for batch size {}. Error: {}",
+                        attempt, MAX_ATTEMPTS, texts.size(), e.getMessage());
+                
+                if (attempt < MAX_ATTEMPTS) {
+                    try {
+                        log.info("Backing off for {} ms before next retry...", backoffMs);
+                        Thread.sleep(backoffMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Embedding generation interrupted during retry backoff", ie);
+                    }
+                    backoffMs *= 2; // Exponential backoff
+                }
+            }
+        }
+
+        log.error("All {} attempts to generate batch embeddings via Ollama failed.", MAX_ATTEMPTS);
+        throw new RuntimeException("Ollama batch embedding generation failed after " + MAX_ATTEMPTS + " attempts", lastException);
+    }
+
+    /**
      * Helper method to get the fixed dimension of the embedding model.
      *
      * @return fixed embedding dimension (768)
@@ -90,6 +138,14 @@ public class OllamaEmbeddingService {
     private static class OllamaEmbedRequest {
         private String model;
         private String input;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    private static class OllamaBatchEmbedRequest {
+        private String model;
+        private List<String> input;
     }
 
     @Data

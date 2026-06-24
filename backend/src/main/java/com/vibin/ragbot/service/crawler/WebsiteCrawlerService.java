@@ -37,6 +37,7 @@ public class WebsiteCrawlerService {
     private final ContentExtractorService contentExtractorService;
     private final TextChunkingService textChunkingService;
     private final TransactionTemplate transactionTemplate;
+    private final com.vibin.ragbot.service.embedding.EmbeddingGenerationService embeddingGenerationService;
 
     private static final int MAX_DEPTH = 3;
     private static final int MAX_PAGES = 50;
@@ -222,6 +223,9 @@ public class WebsiteCrawlerService {
                     currentWebsite.setStatus(CrawlStatus.CRAWLED);
                     websiteRepository.save(currentWebsite);
                     log.info("STEP 16 - Status changed to CRAWLED");
+                    
+                    // Trigger embedding generation automatically
+                    embeddingGenerationService.startEmbeddingGeneration(websiteId);
                 });
                 
                 log.info("Crawling and chunking completed. Crawled {} pages and created chunks from {}", crawledUrls.size(), baseUrl);

@@ -4,6 +4,7 @@ import com.vibin.ragbot.service.embedding.EmbeddingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -35,6 +36,20 @@ public class EmbeddingController {
         return ResponseEntity.ok(Map.of(
             "status", "ACCEPTED",
             "message", "Embedding generation task initiated asynchronously for websiteId: " + websiteId
+        ));
+    }
+
+    /**
+     * Startup verification endpoint to check model and dynamically resolved dimension.
+     *
+     * @return model name and resolved dimension
+     */
+    @GetMapping("/model-info")
+    public ResponseEntity<Map<String, Object>> getModelInfo() {
+        log.info("Received request for embedding model information.");
+        return ResponseEntity.ok(Map.of(
+            "model", "nomic-embed-text",
+            "dimension", embeddingService.getEmbeddingDimension()
         ));
     }
 }

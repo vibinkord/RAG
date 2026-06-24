@@ -62,6 +62,24 @@ public class EmbeddingService {
     }
 
     /**
+     * Determines the embedding dimension dynamically from the model.
+     *
+     * @return the embedding dimension (e.g. 768)
+     */
+    public int getEmbeddingDimension() {
+        try {
+            List<Double> testEmbedding = generateEmbedding("test");
+            if (!testEmbedding.isEmpty()) {
+                return testEmbedding.size();
+            }
+        } catch (Exception e) {
+            log.error("Failed to dynamically determine embedding dimension: {}", e.getMessage());
+        }
+        // Fallback default dimension for nomic-embed-text
+        return 768;
+    }
+
+    /**
      * Reads all chunks for a website, fetches embeddings from Ollama for any chunks
      * that do not have them yet, and stores them in the database.
      *

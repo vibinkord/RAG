@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +26,48 @@ public class TextChunkingService {
 
     private static final int CHUNK_SIZE = 800;
     private static final int OVERLAP = 150;
+
+    private static final Set<String> LOW_VALUE_PATTERNS = Set.of(
+            "view all",
+            "learn more",
+            "get support",
+            "read more",
+            "upcoming events",
+            "sign up",
+            "login",
+            "register",
+            "footer links",
+            "navigation items"
+    );
+
+    /**
+     * Helper to identify low-value chunks (too short, too few words, or UI match).
+     */
+    private boolean isLowValueChunk(String content) {
+        if (content == null) {
+            return true;
+        }
+        String trimmed = content.trim();
+        
+        // 1. Length < 100 characters
+        if (trimmed.length() < 100) {
+            return true;
+        }
+        
+        // 2. Less than 15 words
+        String[] words = trimmed.split("\\s+");
+        if (words.length < 15) {
+            return true;
+        }
+        
+        // 3. Matches common UI text (case-insensitive)
+        String lower = trimmed.toLowerCase();
+        if (LOW_VALUE_PATTERNS.contains(lower)) {
+            return true;
+        }
+        
+        return false;
+    }
 
     /**
      * Splits a Page's content into chunks, preserving sentence boundaries where possible.
@@ -61,14 +104,19 @@ public class TextChunkingService {
                     // Hard-split this long sentence
                     List<String> subChunks = splitLongSentence(nextSentence, CHUNK_SIZE, OVERLAP);
                     for (String subChunk : subChunks) {
-                        if (!subChunk.trim().isEmpty()) {
+                        String trimmedSubChunk = subChunk.trim();
+                        if (!trimmedSubChunk.isEmpty()) {
+                            if (isLowValueChunk(trimmedSubChunk)) {
+                                log.info("Skipped low-value chunk: {}", trimmedSubChunk);
+                                continue;
+                            }
                             log.info("Creating chunk for pageId={}, url={}", page.getId(), page.getUrl());
                             createdChunks.add(Chunk.builder()
                                     .page(page)
                                     .sourceUrl(page.getUrl())
                                     .chunkIndex(chunkIndex++)
-                                    .content(subChunk.trim())
-                                    .tokenCount(estimateTokenCount(subChunk))
+                                    .content(trimmedSubChunk)
+                                    .tokenCount(estimateTokenCount(trimmedSubChunk))
                                     .build());
                         }
                     }
@@ -97,14 +145,18 @@ public class TextChunkingService {
             
             String chunkText = currentChunkBuilder.toString().trim();
             if (!chunkText.isEmpty()) {
-                log.info("Creating chunk for pageId={}, url={}", page.getId(), page.getUrl());
-                createdChunks.add(Chunk.builder()
-                        .page(page)
-                        .sourceUrl(page.getUrl())
-                        .chunkIndex(chunkIndex++)
-                        .content(chunkText)
-                        .tokenCount(estimateTokenCount(chunkText))
-                        .build());
+                if (isLowValueChunk(chunkText)) {
+                    log.info("Skipped low-value chunk: {}", chunkText);
+                } else {
+                    log.info("Creating chunk for pageId={}, url={}", page.getId(), page.getUrl());
+                    createdChunks.add(Chunk.builder()
+                            .page(page)
+                            .sourceUrl(page.getUrl())
+                            .chunkIndex(chunkIndex++)
+                            .content(chunkText)
+                            .tokenCount(estimateTokenCount(chunkText))
+                            .build());
+                }
             }
             
             // Calculate the next start index with overlap

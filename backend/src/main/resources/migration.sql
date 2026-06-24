@@ -42,36 +42,45 @@ CREATE TABLE IF NOT EXISTS embeddings (
 CREATE INDEX IF NOT EXISTS idx_embedding_chunk_id ON embeddings(chunk_id);
 
 -- Convert content columns from OID to TEXT if they were created as OIDs under Hibernate's @Lob annotation
-DO $$
-DECLARE
-    v_chunk_type text;
-    v_page_type text;
-BEGIN
-    -- Check type of chunks.content
-    SELECT data_type INTO v_chunk_type 
-    FROM information_schema.columns 
-    WHERE table_name = 'chunks' AND column_name = 'content';
-    
-    IF v_chunk_type = 'oid' OR v_chunk_type = 'USER-DEFINED' THEN
-        ALTER TABLE chunks ADD COLUMN temp_content TEXT;
-        UPDATE chunks SET temp_content = convert_from(lo_get(content::oid), 'UTF8') WHERE content IS NOT NULL;
-        ALTER TABLE chunks DROP COLUMN content;
-        ALTER TABLE chunks RENAME COLUMN temp_content TO content;
-        ALTER TABLE chunks ALTER COLUMN content SET NOT NULL;
-        RAISE NOTICE 'Converted chunks.content from OID to TEXT';
-    END IF;
+-- =========================================================================
+-- VERIFICATION QUERIES (Run these to inspect the DB state)
+-- =========================================================================
+-- 1. Verify database contents: Check whether content contains numeric OID values
+--    SELECT id, content FROM chunks LIMIT 20;
+--
+-- 2. Verify Large Objects exist: Confirm whether actual text content is returned for a sample OID
+--    SELECT convert_from(lo_get(17691), 'UTF8');
 
-    -- Check type of pages.content
-    SELECT data_type INTO v_page_type 
-    FROM information_schema.columns 
-    WHERE table_name = 'pages' AND column_name = 'content';
-    
-    IF v_page_type = 'oid' OR v_page_type = 'USER-DEFINED' THEN
-        ALTER TABLE pages ADD COLUMN temp_content TEXT;
-        UPDATE pages SET temp_content = convert_from(lo_get(content::oid), 'UTF8') WHERE content IS NOT NULL;
-        ALTER TABLE pages DROP COLUMN content;
-        ALTER TABLE pages RENAME COLUMN temp_content TO content;
-        RAISE NOTICE 'Converted pages.content from OID to TEXT';
-    END IF;
-END;
-$$;
+-- =========================================================================
+-- PRE-MIGRATION BACKUP (Recommended for rollback support)
+-- =========================================================================
+-- Run these statements to back up your tables before running the updates:
+-- CREATE TABLE IF NOT EXISTS backup_chunks AS SELECT * FROM chunks;
+-- CREATE TABLE IF NOT EXISTS backup_pages AS SELECT * FROM pages;
+
+-- =========================================================================
+-- SAFE MIGRATION EXECUTION
+-- =========================================================================
+-- This script replaces numeric OID strings inside the TEXT content columns with their actual text data.
+-- Only targets numeric strings (~ '^[0-9]+$') and checks if they point to valid large objects (lo_get is not null).
+
+-- Update chunks table
+UPDATE chunks
+SET content = convert_from(lo_get(content::oid), 'UTF8')
+WHERE content ~ '^[0-9]+$' AND lo_get(content::oid) IS NOT NULL;
+
+-- Update pages table
+UPDATE pages
+SET content = convert_from(lo_get(content::oid), 'UTF8')
+WHERE content ~ '^[0-9]+$' AND lo_get(content::oid) IS NOT NULL;
+
+-- =========================================================================
+-- ROLLBACK STRATEGY (If you need to restore the tables to their pre-migration state)
+-- =========================================================================
+-- Run these statements if you need to restore original data from the backups:
+-- UPDATE chunks c SET content = b.content FROM backup_chunks b WHERE c.id = b.id;
+-- UPDATE pages p SET content = b.content FROM backup_pages b WHERE p.id = b.id;
+--
+-- After verified, you can drop the backup tables:
+-- DROP TABLE IF EXISTS backup_chunks;
+-- DROP TABLE IF EXISTS backup_pages;

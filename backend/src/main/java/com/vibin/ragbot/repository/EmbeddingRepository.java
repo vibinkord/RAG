@@ -32,4 +32,18 @@ public interface EmbeddingRepository extends JpaRepository<Embedding, Long> {
                    "ORDER BY embedding <=> CAST(:queryVector AS vector) " +
                    "LIMIT :limit", nativeQuery = true)
     List<Embedding> findNearestNeighbors(@Param("queryVector") float[] queryVector, @Param("limit") int limit);
+
+    /**
+     * Find nearest neighbor embeddings for a specific website using pgvector cosine distance.
+     */
+    @Query(value = "SELECT e.* FROM embeddings e " +
+                   "JOIN chunks c ON e.chunk_id = c.id " +
+                   "JOIN pages p ON c.page_id = p.id " +
+                   "WHERE p.website_id = :websiteId " +
+                   "ORDER BY e.embedding <=> CAST(:queryVector AS vector) " +
+                   "LIMIT :limit", nativeQuery = true)
+    List<Embedding> findNearestNeighborsByWebsite(
+            @Param("queryVector") float[] queryVector,
+            @Param("websiteId") Long websiteId,
+            @Param("limit") int limit);
 }

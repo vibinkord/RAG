@@ -10,16 +10,12 @@ import {
   Cpu, 
   Clock, 
   Activity, 
-  Database,
   TrendingUp,
   Server,
-  Zap,
-  HelpCircle,
-  FileText,
   MessageSquare
 } from 'lucide-react';
 import { formatDate } from '../lib/utils';
-import { PieChart, LineChart, AreaChart } from '../components/ui/Charts';
+import { PieChart, LineChart } from '../components/ui/Charts';
 
 export const Dashboard: React.FC = () => {
   const [websites, setWebsites] = useState<Website[]>([]);
@@ -117,17 +113,7 @@ export const Dashboard: React.FC = () => {
     { name: 'W4', pages: stats.totalPages, chunks: stats.totalChunks, embeddings: stats.totalChunks }
   ];
 
-  const queryChartData = telemetryLogs.length >= 5 
-    ? telemetryLogs.slice(0, 6).reverse().map((log, i) => ({ name: `Q${i+1}`, queries: Math.round(log.latencyMs / 60) + 1 }))
-    : [
-        { name: 'Mon', queries: 2 },
-        { name: 'Tue', queries: 8 },
-        { name: 'Wed', queries: 5 },
-        { name: 'Thu', queries: 14 },
-        { name: 'Fri', queries: 9 },
-        { name: 'Sat', queries: 4 },
-        { name: 'Sun', queries: 16 }
-      ];
+
 
   // User-focused KPIs
   const kpiCards = [

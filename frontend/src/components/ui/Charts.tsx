@@ -80,8 +80,9 @@ export const PieChart: React.FC<PieChartProps> = ({ data }) => {
                 strokeDashoffset={strokeOffset}
                 strokeLinecap="round"
                 className="transition-all duration-500 ease-out hover:opacity-85 cursor-pointer"
-                title={`${item.name}: ${item.value}`}
-              />
+              >
+                <title>{`${item.name}: ${item.value}`}</title>
+              </circle>
             );
           })}
         </svg>
@@ -434,8 +435,9 @@ export const AreaChart: React.FC<AreaChartProps> = ({ data }) => {
               stroke="#0F172A"
               strokeWidth={1.5}
               className="cursor-pointer transition-transform duration-100 hover:scale-150"
-              title={`${d.name}: ${d.queries} queries`}
-            />
+            >
+              <title>{`${d.name}: ${d.queries} queries`}</title>
+            </circle>
           );
         })}
       </svg>

@@ -2,31 +2,24 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { websiteStore } from '../store/websiteStore';
 import { apiService } from '../services/api';
-import { Website, IngestionResponse, EmbeddingStatus } from '../types';
+import { Website, IngestionResponse } from '../types';
 import { 
   Globe, 
   Plus, 
   RefreshCw, 
   Trash2, 
   MessageSquare, 
-  Database, 
   Loader2, 
   CheckCircle2, 
   AlertTriangle,
-  Play,
-  ArrowRight,
   Clock,
   X,
   FileText,
   Layers,
-  Calendar,
-  ExternalLink,
-  HelpCircle,
-  FileCode
+  ExternalLink
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
-import { Badge } from '../components/ui/Badge';
+import { Card, CardContent } from '../components/ui/Card';
 import { Dialog } from '../components/ui/Dialog';
 import { Input } from '../components/ui/Input';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/Alert';
@@ -70,8 +63,7 @@ export const Websites: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [urlValidationError, setUrlValidationError] = useState<string | null>(null);
   
-  // Embedding statuses
-  const [embeddingStatuses, setEmbeddingStatuses] = useState<Record<number, EmbeddingStatus>>({});
+  // Embedding statuses removed as unused
   const [refreshingIds, setRefreshingIds] = useState<Record<number, boolean>>({});
 
   // Drawer selected website state
@@ -119,19 +111,7 @@ export const Websites: React.FC = () => {
           }
         }
 
-        if (w.status === 'CRAWLED' && w.chunksCreated > 0) {
-          try {
-            const emb = await apiService.getEmbeddingStatus(w.id);
-            setEmbeddingStatuses(prev => {
-              if (JSON.stringify(prev[w.id]) !== JSON.stringify(emb)) {
-                return { ...prev, [w.id]: emb };
-              }
-              return prev;
-            });
-          } catch (e) {
-            console.error('Embedding status poll error', e);
-          }
-        }
+
       }
 
       if (updatedAny) {

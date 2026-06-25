@@ -10,12 +10,6 @@ import {
   X, 
   ChevronLeft, 
   ChevronRight,
-  Database,
-  Activity,
-  Cpu,
-  Server,
-  Terminal,
-  HelpCircle,
   Sparkles
 } from 'lucide-react';
 import { cn } from '../lib/utils';

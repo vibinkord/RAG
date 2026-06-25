@@ -9,18 +9,14 @@ import {
   Sliders, 
   Layers, 
   HelpCircle,
-  Clock,
   ChevronDown,
   ChevronUp,
-  Cpu,
-  Database,
-  CheckCircle,
-  FileText
+  Loader2
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
-import { Badge } from '../components/ui/Badge';
+
 import { Select } from '../components/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/Table';
 

@@ -5,18 +5,14 @@ import { Website, EvaluationResponse } from '../types';
 import { 
   Award, 
   Loader2, 
-  Star, 
   HelpCircle, 
   Zap, 
-  Clock, 
-  AlignLeft, 
-  FileText,
-  ExternalLink
+  AlignLeft
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
-import { Badge } from '../components/ui/Badge';
+
 import { Select } from '../components/ui/Select';
 
 // -------------------------------------------------------------

@@ -11,24 +11,20 @@ import {
   Sparkles, 
   Trash2, 
   Plus, 
-  ExternalLink, 
   Loader2, 
-  Clock, 
   ChevronRight,
   Sliders,
   Copy,
   Check,
   ChevronDown,
   ChevronUp,
-  Info,
   Database,
-  Cpu,
-  Layers,
   HelpCircle
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { Card, CardContent } from '../components/ui/Card';
+
 import { Badge } from '../components/ui/Badge';
+import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 
 interface ChatMessage {
@@ -680,7 +676,7 @@ export const Chat: React.FC = () => {
                 type="text" 
                 placeholder="e.g. guide, tutorial, blog"
                 value={selectedPageType}
-                onChange={(e) => setSelectedPageType(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedPageType(e.target.value)}
                 className="h-9 text-xs bg-zinc-900 border-zinc-800"
               />
               <p className="text-[10px] text-zinc-550">Filter search results to a specific pageType tag.</p>

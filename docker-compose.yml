@@ -1,0 +1,98 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: ragbot-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ragbot}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-ragbot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ragbot-network
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ragbot-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      - ragbot-network
+
+  # Initialization container to pull required models into Ollama
+  ollama-pull:
+    image: curlimages/curl:latest
+    container_name: ragbot-ollama-pull
+    depends_on:
+      ollama:
+        condition: service_healthy
+    command: >
+      sh -c "echo 'Pulling mistral model...' && curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"mistral\"}' &&
+             echo 'Pulling nomic-embed-text model...' && curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"nomic-embed-text\"}' &&
+             echo 'All models pulled successfully!'"
+    networks:
+      - ragbot-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ragbot-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ragbot}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-postgres}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - SPRING_AI_OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_BASE_URL=http://ollama:11434
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/test/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ragbot-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ragbot-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - ragbot-network
+
+networks:
+  ragbot-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  ollama_data:

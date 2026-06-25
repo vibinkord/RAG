@@ -16,7 +16,7 @@ public class OllamaChatService {
 
     private final RestTemplate restTemplate;
 
-    @Value("${ollama.api.url:http://localhost:11434}")
+    @Value("${ollama.base-url}")
     private String ollamaApiUrl;
 
     private static final String MODEL_NAME = "mistral";

@@ -80,7 +80,7 @@ public class EmbeddingGenerationService {
         try {
             // Load all chunks for the website
             List<Chunk> chunks = chunkRepository.findByPageWebsiteId(websiteId);
-            log.info("Loaded {} chunks", chunks.size());
+            log.info("Loaded {} chunks for embedding generation for website {}", chunks.size(), websiteId);
             
             // Filter out chunks that already have embeddings
             List<Chunk> chunksToProcess = new ArrayList<>();
@@ -131,9 +131,11 @@ public class EmbeddingGenerationService {
 
                 if (!batchEmbeddings.isEmpty()) {
                     // Save batch inside its own transaction block
+                    log.info("Saving {} embeddings", batchEmbeddings.size());
                     transactionTemplate.executeWithoutResult(status -> {
                         embeddingRepository.saveAll(batchEmbeddings);
                     });
+                    log.info("Saved {} embeddings", batchEmbeddings.size());
                     for (Embedding embedding : batchEmbeddings) {
                         log.info("Embedding saved for chunk {}", embedding.getChunkId());
                     }

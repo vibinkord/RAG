@@ -223,10 +223,11 @@ public class WebsiteCrawlerService {
                     currentWebsite.setStatus(CrawlStatus.CRAWLED);
                     websiteRepository.save(currentWebsite);
                     log.info("STEP 16 - Status changed to CRAWLED");
-                    
-                    // Trigger embedding generation automatically
-                    embeddingGenerationService.startEmbeddingGeneration(websiteId);
                 });
+                
+                log.info("Transaction committed. Starting embedding generation for website {}", websiteId);
+                // Trigger embedding generation automatically
+                embeddingGenerationService.startEmbeddingGeneration(websiteId);
                 
                 log.info("Crawling and chunking completed. Crawled {} pages and created chunks from {}", crawledUrls.size(), baseUrl);
                 return CompletableFuture.completedFuture(crawledUrls);

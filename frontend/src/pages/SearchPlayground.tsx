@@ -105,7 +105,8 @@ export const SearchPlayground: React.FC = () => {
         setDebugResults([]);
         setLatencyMs(res.latencyMs);
       }
-    } catch (e: any) {
+    } catch (error) {
+      const e = error as { response?: { data?: { message?: string } }, message?: string };
       console.error(e);
       setErrorMsg(e.response?.data?.message || e.message || 'Search Explorer encountered an error. Verify your local services.');
     } finally {

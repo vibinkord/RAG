@@ -23,16 +23,30 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: ragbot-ollama
+
     ports:
       - "11434:11434"
+
     volumes:
       - ollama_data:/root/.ollama
+
+    # GPU support
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities:
+                - gpu
+
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 30s
       timeout: 10s
       retries: 10
       start_period: 60s
+
     networks:
       - ragbot-network
 
@@ -44,9 +58,13 @@ services:
       ollama:
         condition: service_healthy
     command: >
-      sh -c "echo 'Pulling mistral model...' && curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"mistral\"}' &&
-             echo 'Pulling nomic-embed-text model...' && curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"nomic-embed-text\"}' &&
-             echo 'All models pulled successfully!'"
+      sh -c "
+        echo 'Pulling qwen2.5:7b...' &&
+        curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"qwen2.5:7b\"}' &&
+        echo 'Pulling nomic-embed-text...' &&
+        curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"nomic-embed-text\"}' &&
+        echo 'Done!'
+      "
     networks:
       - ragbot-network
 

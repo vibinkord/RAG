@@ -19,17 +19,18 @@ public class OllamaChatService {
     @Value("${ollama.base-url}")
     private String ollamaApiUrl;
 
-    private static final String MODEL_NAME = "mistral";
+    @Value("${ollama.chat.model:qwen2.5:7b}")
+    private String modelName;
 
     /**
-     * Generates a text response from Ollama's mistral model.
+     * Generates a text response from Ollama's configured model.
      *
      * @param prompt the prompt to send to the model
      * @return the generated response text
      */
     public String generateAnswer(String prompt) {
         String url = ollamaApiUrl + "/api/generate";
-        OllamaGenerateRequest request = new OllamaGenerateRequest(MODEL_NAME, prompt, false);
+        OllamaGenerateRequest request = new OllamaGenerateRequest(modelName, prompt, false);
 
         log.debug("Sending generation request to Ollama URL: {}", url);
         OllamaGenerateResponse response = restTemplate.postForObject(url, request, OllamaGenerateResponse.class);
@@ -42,7 +43,7 @@ public class OllamaChatService {
     }
 
     public String getModelName() {
-        return MODEL_NAME;
+        return modelName;
     }
 
     @Data

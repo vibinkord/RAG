@@ -12,7 +12,6 @@ import {
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
-
 import { Select } from '../components/ui/Select';
 
 // -------------------------------------------------------------
@@ -33,7 +32,7 @@ const CircularGauge: React.FC<CircularGaugeProps> = ({ value, label, title, desc
   const strokeDashoffset = circumference - (value / 100) * circumference;
 
   return (
-    <div className="flex items-center space-x-4 bg-zinc-900/40 border border-zinc-800/80 p-4 rounded hover:border-zinc-700/80 transition-colors">
+    <div className="flex items-center space-x-4 bg-secondary/50 border border-border p-4 rounded-lg hover:shadow-sm transition-all">
       <div className="relative h-18 w-18 shrink-0">
         <svg className="transform -rotate-90 h-18 w-18" viewBox="0 0 80 80">
           <circle 
@@ -41,7 +40,7 @@ const CircularGauge: React.FC<CircularGaugeProps> = ({ value, label, title, desc
             cy="40" 
             r={radius} 
             fill="none" 
-            stroke="#1F2937" 
+            stroke="var(--border)" 
             strokeWidth={strokeWidth} 
           />
           <circle 
@@ -57,13 +56,13 @@ const CircularGauge: React.FC<CircularGaugeProps> = ({ value, label, title, desc
             className="transition-all duration-700 ease-out"
           />
         </svg>
-        <div className="absolute inset-0 flex items-center justify-center font-mono font-bold text-xs text-white">
+        <div className="absolute inset-0 flex items-center justify-center font-mono font-bold text-sm text-textPrimary">
           {label}
         </div>
       </div>
-      <div className="space-y-0.5">
-        <h4 className="text-xs font-semibold text-zinc-200">{title}</h4>
-        <p className="text-[10px] text-zinc-550 leading-normal">{description}</p>
+      <div className="space-y-1">
+        <h4 className="text-sm font-semibold text-textPrimary">{title}</h4>
+        <p className="text-xs text-textSecondary leading-relaxed">{description}</p>
       </div>
     </div>
   );
@@ -128,7 +127,8 @@ export const Evaluation: React.FC = () => {
         selectedPageType || undefined
       );
       setResult(response);
-    } catch (e: any) {
+    } catch (error) {
+      const e = error as { response?: { data?: { message?: string } }, message?: string };
       console.error(e);
       setErrorMsg(e.response?.data?.message || e.message || 'Evaluation pipeline execution failed. Ensure LLM grader connection.');
     } finally {
@@ -149,73 +149,73 @@ export const Evaluation: React.FC = () => {
     : 0;
 
   return (
-    <div className="space-y-8 w-full animate-fade-in">
+    <div className="space-y-8 w-full animate-fade-in pb-12">
       {/* Title */}
       <div>
-        <h2 className="text-xl font-bold text-slate-50 tracking-tight">Answer Evaluation</h2>
-        <p className="text-xs text-zinc-400 mt-1">Audit answers correctness, verify semantic similarity ratings, and check consensus confidence metrics.</p>
+        <h2 className="text-2xl font-bold text-textPrimary tracking-tight">Answer Evaluation</h2>
+        <p className="text-sm text-textSecondary mt-1">Audit answers correctness, verify semantic similarity ratings, and check consensus confidence metrics.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Setup Column */}
         <div className="lg:col-span-1 space-y-6">
-          <Card className="bg-[#111827] border-zinc-800">
-            <CardHeader className="p-5 border-b border-zinc-850">
+          <Card className="bg-card border-border shadow-sm">
+            <CardHeader className="p-5 border-b border-border/50 bg-secondary/30">
               <div className="flex items-center space-x-2">
-                <Award className="h-4 w-4 text-zinc-400" />
+                <Award className="h-4 w-4 text-textSecondary" />
                 <CardTitle className="text-sm font-semibold">Evaluation Setup</CardTitle>
               </div>
             </CardHeader>
             <CardContent className="p-5">
-              <form onSubmit={handleEvaluate} className="space-y-4">
+              <form onSubmit={handleEvaluate} className="space-y-5">
                 
                 {/* Website Source selection */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider">Target Knowledge Source</label>
+                  <label className="text-xs font-medium text-textPrimary">Target Knowledge Source</label>
                   <Select 
                     value={selectedWebsiteId}
                     onChange={(e) => setSelectedWebsiteId(e.target.value)}
                     options={websiteOptions}
-                    className="text-xs h-10 bg-black border-zinc-850"
+                    className="text-sm h-10 bg-background border-border focus:border-primary focus:ring-1 focus:ring-primary/20"
                   />
                 </div>
 
                 {/* Metadata pageType filter */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider">Page Category Filter</label>
+                  <label className="text-xs font-medium text-textPrimary">Page Category Filter</label>
                   <Input 
                     type="text" 
                     placeholder="e.g. guide, tutorial"
                     value={selectedPageType}
                     onChange={(e) => setSelectedPageType(e.target.value)}
-                    className="text-xs h-10 bg-black border-zinc-850"
+                    className="text-sm h-10 bg-background border-border focus:border-primary focus:ring-1 focus:ring-primary/20"
                   />
                 </div>
 
                 {/* Question */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider">Benchmark Question</label>
+                  <label className="text-xs font-medium text-textPrimary">Benchmark Question</label>
                   <textarea 
                     placeholder="e.g. What is the default Tomcat port?"
                     value={question}
                     onChange={(e) => setQuestion(e.target.value)}
                     required
-                    rows={2}
-                    className="flex w-full rounded border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-xs text-zinc-100 placeholder:text-zinc-505 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400 disabled:cursor-not-allowed disabled:opacity-50"
+                    rows={3}
+                    className="flex w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-textPrimary placeholder:text-textSecondary/50 focus-visible:outline-none focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50 resize-none transition-all"
                   />
                 </div>
 
                 {/* Ground Truth expected answer */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider">Expected Ground Truth Answer</label>
+                  <label className="text-xs font-medium text-textPrimary">Expected Ground Truth Answer</label>
                   <textarea 
                     placeholder="e.g. The default port is 8080. You can change it in application.properties."
                     value={expectedAnswer}
                     onChange={(e) => setExpectedAnswer(e.target.value)}
                     required
-                    rows={3}
-                    className="flex w-full rounded border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-xs text-zinc-100 placeholder:text-zinc-505 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400 disabled:cursor-not-allowed disabled:opacity-50"
+                    rows={4}
+                    className="flex w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-textPrimary placeholder:text-textSecondary/50 focus-visible:outline-none focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50 resize-none transition-all"
                   />
                 </div>
 
@@ -223,9 +223,13 @@ export const Evaluation: React.FC = () => {
                 <Button 
                   type="submit" 
                   disabled={loading || !question.trim() || !expectedAnswer.trim()}
-                  className="w-full h-10 text-xs bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-lg shadow-blue-500/10"
+                  className="w-full h-10 text-sm bg-primary hover:bg-primary/90 text-white font-medium shadow-sm mt-2"
                 >
-                  {loading ? 'Evaluating response...' : 'Run Correctness Grader'}
+                  {loading ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Evaluating response...</>
+                  ) : (
+                    'Run Correctness Grader'
+                  )}
                 </Button>
 
               </form>
@@ -236,27 +240,30 @@ export const Evaluation: React.FC = () => {
         {/* Results Column */}
         <div className="lg:col-span-2 space-y-6">
           {errorMsg && (
-            <div className="bg-red-950/20 border border-red-900/60 p-4 rounded text-xs text-red-300">
+            <div className="bg-danger/10 border border-danger/20 p-4 rounded-md text-sm text-danger flex items-start gap-2">
+               <HelpCircle className="h-4 w-4 mt-0.5 shrink-0" />
               {errorMsg}
             </div>
           )}
 
           {loading ? (
-            <Card className="bg-[#111827] border-zinc-800 h-96 flex flex-col items-center justify-center text-center p-6">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-500 mb-4" />
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-zinc-200">Executing Correctness Grader...</p>
-                <p className="text-xs text-zinc-550 max-w-xs leading-relaxed font-mono">
+            <Card className="bg-card border-border h-[500px] flex flex-col items-center justify-center text-center p-8 shadow-sm">
+              <Loader2 className="h-10 w-10 animate-spin text-primary mb-5" />
+              <div className="space-y-2">
+                <p className="text-base font-semibold text-textPrimary">Executing Correctness Grader...</p>
+                <p className="text-sm text-textSecondary max-w-sm leading-relaxed mx-auto">
                   Synthesizing answers, mapping vector layouts, and comparing outputs through LLM grader thresholds.
                 </p>
               </div>
             </Card>
           ) : !result ? (
-            <Card className="bg-[#111827] border-zinc-800 h-96 flex flex-col items-center justify-center text-center p-6">
-              <HelpCircle className="h-8 w-8 text-zinc-700 mb-3" />
-              <div className="space-y-1.5 max-w-sm">
-                <p className="text-sm font-semibold text-zinc-300">Awaiting Evaluation</p>
-                <p className="text-xs text-zinc-550 leading-relaxed">
+            <Card className="bg-card border-border h-[500px] flex flex-col items-center justify-center text-center p-8 shadow-sm">
+              <div className="h-16 w-16 bg-secondary rounded-full flex items-center justify-center border border-border mb-4">
+                <HelpCircle className="h-8 w-8 text-textSecondary" />
+              </div>
+              <div className="space-y-2 max-w-md">
+                <p className="text-base font-semibold text-textPrimary">Awaiting Evaluation</p>
+                <p className="text-sm text-textSecondary leading-relaxed">
                   Submit a benchmark question with its expected ground-truth documentation. The grader will analyze accuracy and calculate ratings.
                 </p>
               </div>
@@ -271,7 +278,7 @@ export const Evaluation: React.FC = () => {
                   label={`${result.factualCorrectnessScore.toFixed(1)}`}
                   title="Factual Correctness"
                   description="Grades factual accuracy against expected documentation criteria."
-                  color="#10B981"
+                  color="var(--success)"
                 />
                 
                 <CircularGauge 
@@ -279,7 +286,7 @@ export const Evaluation: React.FC = () => {
                   label={`${result.similarityScore.toFixed(2)}`}
                   title="Semantic Similarity"
                   description="Indicates reference context layout vector closeness."
-                  color="#3B82F6"
+                  color="var(--primary)"
                 />
 
                 <CircularGauge 
@@ -287,29 +294,29 @@ export const Evaluation: React.FC = () => {
                   label={`${confidencePercent}%`}
                   title="Consensus Confidence"
                   description="Aggregate consensus rating generated by LLM grader constraints."
-                  color="#F59E0B"
+                  color="var(--warning)"
                 />
               </div>
 
               {/* Side-by-side answers */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <Card className="bg-zinc-950 border-zinc-850">
-                  <CardHeader className="p-4 border-b border-zinc-900">
-                    <CardTitle className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Ground Truth Expected Answer</CardTitle>
+                <Card className="bg-card border-border shadow-sm">
+                  <CardHeader className="p-4 border-b border-border/50 bg-secondary/30">
+                    <CardTitle className="text-xs font-bold text-textSecondary uppercase tracking-widest">Ground Truth Expected Answer</CardTitle>
                   </CardHeader>
                   <CardContent className="p-4">
-                    <p className="text-xs leading-relaxed text-zinc-300 bg-[#111827]/40 border border-zinc-855 p-3 rounded font-mono select-all min-h-[100px]">
+                    <p className="text-sm leading-relaxed text-textPrimary bg-background border border-border/50 p-4 rounded-md font-mono select-all min-h-[120px] whitespace-pre-wrap">
                       {result.expectedAnswer}
                     </p>
                   </CardContent>
                 </Card>
 
-                <Card className="bg-zinc-950 border-zinc-850">
-                  <CardHeader className="p-4 border-b border-zinc-900">
-                    <CardTitle className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Pipeline Generated Response</CardTitle>
+                <Card className="bg-card border-border shadow-sm">
+                  <CardHeader className="p-4 border-b border-border/50 bg-secondary/30">
+                    <CardTitle className="text-xs font-bold text-textSecondary uppercase tracking-widest">Pipeline Generated Response</CardTitle>
                   </CardHeader>
                   <CardContent className="p-4">
-                    <p className="text-xs leading-relaxed text-zinc-300 bg-[#111827]/40 border border-zinc-855 p-3 rounded font-mono select-all min-h-[100px]">
+                    <p className="text-sm leading-relaxed text-textPrimary bg-background border border-border/50 p-4 rounded-md font-mono select-all min-h-[120px] whitespace-pre-wrap">
                       {result.generatedAnswer}
                     </p>
                   </CardContent>
@@ -317,44 +324,44 @@ export const Evaluation: React.FC = () => {
               </div>
 
               {/* Grader Critique */}
-              <Card className="bg-[#111827] border-zinc-800">
-                <CardHeader className="p-5 border-b border-zinc-850">
+              <Card className="bg-card border-border shadow-sm">
+                <CardHeader className="p-5 border-b border-border/50 bg-secondary/30">
                   <div className="flex items-center space-x-2">
-                    <AlignLeft className="h-4 w-4 text-zinc-400" />
+                    <AlignLeft className="h-4 w-4 text-textSecondary" />
                     <CardTitle className="text-sm font-semibold">Grader Critique Breakdown</CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent className="p-5">
-                  <p className="text-xs leading-relaxed text-zinc-300 whitespace-pre-wrap">
+                  <p className="text-sm leading-relaxed text-textPrimary whitespace-pre-wrap">
                     {result.explanation}
                   </p>
                 </CardContent>
               </Card>
 
               {/* Telemetry Metrics */}
-              <Card className="bg-[#111827] border-zinc-800">
-                <CardHeader className="p-5 border-b border-zinc-850">
+              <Card className="bg-card border-border shadow-sm">
+                <CardHeader className="p-5 border-b border-border/50 bg-secondary/30">
                   <div className="flex items-center space-x-2">
-                    <Zap className="h-4 w-4 text-zinc-400" />
+                    <Zap className="h-4 w-4 text-textSecondary" />
                     <CardTitle className="text-sm font-semibold">Assessment Telemetry Metrics</CardTitle>
                   </div>
                 </CardHeader>
-                <CardContent className="p-5 space-y-3 text-xs font-mono">
-                  <div className="flex justify-between py-1.5 border-b border-zinc-850">
-                    <span className="text-zinc-500">Matching context chunks retrieved:</span>
-                    <span className="text-zinc-300 font-semibold">{result.retrievedChunksCount} chunks</span>
+                <CardContent className="p-5 space-y-3 text-sm font-mono">
+                  <div className="flex justify-between py-2 border-b border-border/50">
+                    <span className="text-textSecondary">Matching context chunks retrieved:</span>
+                    <span className="text-textPrimary font-semibold">{result.retrievedChunksCount} chunks</span>
                   </div>
-                  <div className="flex justify-between py-1.5 border-b border-zinc-850">
-                    <span className="text-zinc-500">Vector Search Retrieval:</span>
-                    <span className="text-zinc-300 font-semibold">{result.retrievalLatencyMs} ms</span>
+                  <div className="flex justify-between py-2 border-b border-border/50">
+                    <span className="text-textSecondary">Vector Search Retrieval:</span>
+                    <span className="text-textPrimary font-semibold">{result.retrievalLatencyMs} ms</span>
                   </div>
-                  <div className="flex justify-between py-1.5 border-b border-zinc-850">
-                    <span className="text-zinc-500">LLM Output Synthesis:</span>
-                    <span className="text-zinc-300 font-semibold">{result.generationLatencyMs} ms</span>
+                  <div className="flex justify-between py-2 border-b border-border/50">
+                    <span className="text-textSecondary">LLM Output Synthesis:</span>
+                    <span className="text-textPrimary font-semibold">{result.generationLatencyMs} ms</span>
                   </div>
-                  <div className="flex justify-between py-1.5 font-bold">
-                    <span className="text-zinc-355">Total pipeline overhead:</span>
-                    <span className="text-white bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded">{result.totalLatencyMs} ms</span>
+                  <div className="flex justify-between py-2 font-bold">
+                    <span className="text-textPrimary">Total pipeline overhead:</span>
+                    <span className="text-textPrimary bg-secondary border border-border/50 px-2 py-0.5 rounded-sm">{result.totalLatencyMs} ms</span>
                   </div>
                 </CardContent>
               </Card>

@@ -21,7 +21,8 @@ public class OllamaEmbeddingService {
     @Value("${ollama.base-url}")
     private String ollamaApiUrl;
 
-    private static final String MODEL_NAME = "nomic-embed-text";
+    @Value("${ollama.embedding.model:nomic-embed-text}")
+    private String modelName;
     private static final int MAX_ATTEMPTS = 3;
     private static final long INITIAL_BACKOFF_MS = 1000;
 
@@ -38,7 +39,7 @@ public class OllamaEmbeddingService {
         }
 
         String url = ollamaApiUrl + "/api/embed";
-        OllamaEmbedRequest request = new OllamaEmbedRequest(MODEL_NAME, text);
+        OllamaEmbedRequest request = new OllamaEmbedRequest(modelName, text);
 
         long backoffMs = INITIAL_BACKOFF_MS;
         Exception lastException = null;
@@ -85,7 +86,7 @@ public class OllamaEmbeddingService {
         }
 
         String url = ollamaApiUrl + "/api/embed";
-        OllamaBatchEmbedRequest request = new OllamaBatchEmbedRequest(MODEL_NAME, texts);
+        OllamaBatchEmbedRequest request = new OllamaBatchEmbedRequest(modelName, texts);
 
         long backoffMs = INITIAL_BACKOFF_MS;
         Exception lastException = null;

@@ -13,7 +13,7 @@ export const Tabs: React.FC<TabsProps> = ({ value, onValueChange, children, clas
     <div className={cn("w-full", className)}>
       {React.Children.map(children, child => {
         if (React.isValidElement(child)) {
-          return React.cloneElement(child, { activeValue: value, onValueChange } as any);
+          return React.cloneElement(child, { activeValue: value, onValueChange } as React.HTMLAttributes<HTMLElement> & { activeValue?: string, onValueChange?: (value: string) => void });
         }
         return child;
       })}
@@ -36,7 +36,7 @@ export const TabsList: React.FC<TabsListProps> = ({ children, activeValue, onVal
           return React.cloneElement(child, { 
             activeValue, 
             onClick: () => onValueChange?.(child.props.value) 
-          } as any);
+          } as React.HTMLAttributes<HTMLElement> & { activeValue?: string });
         }
         return child;
       })}

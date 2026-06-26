@@ -11,7 +11,6 @@ import {
   Sparkles, 
   Trash2, 
   Plus, 
-  Loader2, 
   ChevronRight,
   Sliders,
   Copy,
@@ -19,13 +18,36 @@ import {
   ChevronDown,
   ChevronUp,
   Database,
-  HelpCircle
+  HelpCircle,
+  Menu,
+  X
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
+import ReactMarkdown from 'react-markdown';
+import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
+import tsx from 'react-syntax-highlighter/dist/esm/languages/prism/tsx';
+import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typescript';
+import javascript from 'react-syntax-highlighter/dist/esm/languages/prism/javascript';
+import python from 'react-syntax-highlighter/dist/esm/languages/prism/python';
+import java from 'react-syntax-highlighter/dist/esm/languages/prism/java';
+import bash from 'react-syntax-highlighter/dist/esm/languages/prism/bash';
+import json from 'react-syntax-highlighter/dist/esm/languages/prism/json';
+import css from 'react-syntax-highlighter/dist/esm/languages/prism/css';
+import markdown from 'react-syntax-highlighter/dist/esm/languages/prism/markdown';
+import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+SyntaxHighlighter.registerLanguage('tsx', tsx);
+SyntaxHighlighter.registerLanguage('typescript', typescript);
+SyntaxHighlighter.registerLanguage('javascript', javascript);
+SyntaxHighlighter.registerLanguage('python', python);
+SyntaxHighlighter.registerLanguage('java', java);
+SyntaxHighlighter.registerLanguage('bash', bash);
+SyntaxHighlighter.registerLanguage('json', json);
+SyntaxHighlighter.registerLanguage('css', css);
+SyntaxHighlighter.registerLanguage('markdown', markdown);
 
 interface ChatMessage {
   id: string;
@@ -74,6 +96,48 @@ const getFriendlyName = (url: string): string => {
   }
 };
 
+const MarkdownContent = ({ content }: { content: string }) => {
+  return (
+    <ReactMarkdown
+      components={{
+        code({ node, inline, className, children, ...props }: React.ComponentPropsWithoutRef<'code'> & { inline?: boolean, node?: unknown }) {
+          const match = /language-(\w+)/.exec(className || '');
+          return !inline && match ? (
+            <div className="rounded-md overflow-hidden my-4 border border-border bg-gray-50/50">
+              <div className="bg-secondary px-3 py-1.5 text-xs text-textSecondary font-medium border-b border-border flex justify-between items-center">
+                <span>{match[1]}</span>
+              </div>
+              <SyntaxHighlighter
+                {...props}
+                children={String(children).replace(/\n$/, '')}
+                style={oneLight}
+                language={match[1]}
+                PreTag="div"
+                customStyle={{ margin: 0, padding: '1rem', fontSize: '0.85rem', backgroundColor: 'transparent' }}
+              />
+            </div>
+          ) : (
+            <code {...props} className={cn("bg-secondary text-primary px-1.5 py-0.5 rounded-md text-[0.9em] font-mono", className)}>
+              {children}
+            </code>
+          );
+        },
+        p: ({ children }) => <p className="mb-4 last:mb-0 leading-relaxed text-textPrimary">{children}</p>,
+        ul: ({ children }) => <ul className="list-disc pl-6 mb-4 text-textPrimary">{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal pl-6 mb-4 text-textPrimary">{children}</ol>,
+        li: ({ children }) => <li className="mb-1 text-textPrimary">{children}</li>,
+        h1: ({ children }) => <h1 className="text-xl font-bold mb-4 mt-6 text-textPrimary">{children}</h1>,
+        h2: ({ children }) => <h2 className="text-lg font-bold mb-3 mt-5 text-textPrimary">{children}</h2>,
+        h3: ({ children }) => <h3 className="text-base font-bold mb-2 mt-4 text-textPrimary">{children}</h3>,
+        a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-primary hover:underline">{children}</a>,
+        blockquote: ({ children }) => <blockquote className="border-l-4 border-border pl-4 italic text-textSecondary my-4">{children}</blockquote>,
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+};
+
 export const Chat: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [sessionId, setSessionId] = useState<string>('');
@@ -91,8 +155,8 @@ export const Chat: React.FC = () => {
   const [showConfig, setShowConfig] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [thinkingPhase, setThinkingPhase] = useState(0);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Accordion state per message for developer details
   const [expandedDetails, setExpandedDetails] = useState<Record<string, boolean>>({});
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -141,6 +205,7 @@ export const Chat: React.FC = () => {
     setInputMessage('');
     setExpandedDetails({});
     setSearchParams({});
+    setIsSidebarOpen(false);
   };
 
   const persistSession = (updatedMessages: ChatMessage[]) => {
@@ -176,6 +241,7 @@ export const Chat: React.FC = () => {
     if (sess.selectedWebsiteId) setSelectedWebsiteId(sess.selectedWebsiteId);
     if (sess.selectedPageType) setSelectedPageType(sess.selectedPageType);
     setExpandedDetails({});
+    setIsSidebarOpen(false);
   };
 
   const handleDeleteSession = (id: string, e: React.MouseEvent) => {
@@ -233,7 +299,8 @@ export const Chat: React.FC = () => {
       const finalMsgs = [...newMsgs, assistantMsg];
       setMessages(finalMsgs);
       persistSession(finalMsgs);
-    } catch (e: any) {
+    } catch (error) {
+      const e = error as { response?: { data?: { message?: string } }, message?: string };
       console.error(e);
       const errorMsg: ChatMessage = {
         id: Math.random().toString(36).substring(7),
@@ -297,33 +364,44 @@ export const Chat: React.FC = () => {
   const groupedSessions = getGroupedSessions();
 
   const thinkingMessages = [
-    "Searching your knowledge base...",
-    "Analyzing retrieved context...",
-    "Preparing your answer..."
+    "Searching knowledge base...",
+    "Analyzing context...",
+    "Formulating response..."
   ];
 
   return (
-    <div className="flex h-[calc(100vh-8.5rem)] gap-5 w-full relative overflow-hidden animate-fade-in">
+    <div className="flex h-[calc(100vh-8.5rem)] w-full relative overflow-hidden bg-background">
       
+      {/* Mobile Sidebar Overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-textPrimary/20 z-40 md:hidden backdrop-blur-sm"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar: Recent Conversations */}
-      <aside className="w-64 h-full border border-zinc-800 bg-[#111827] rounded flex flex-col justify-between shrink-0 overflow-y-auto hidden md:flex">
+      <aside className={cn(
+        "absolute md:relative z-50 w-64 h-full border-r border-border bg-secondary flex flex-col justify-between shrink-0 overflow-y-auto transition-transform duration-300 ease-in-out",
+        isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+      )}>
         <div className="flex flex-col h-full">
-          <div className="p-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
-            <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-widest">Conversations</span>
+          <div className="p-4 flex items-center justify-between shrink-0">
+            <span className="text-xs font-semibold text-textSecondary uppercase tracking-widest">Chat History</span>
             <button 
               onClick={createNewSession}
-              className="text-zinc-400 hover:text-white p-1 rounded hover:bg-zinc-800 transition-colors"
+              className="text-textSecondary hover:text-textPrimary p-1.5 rounded-md hover:bg-border/50 transition-colors"
               title="New thread"
             >
               <Plus className="h-4 w-4" />
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-2.5 space-y-5">
+          <div className="flex-1 overflow-y-auto p-3 space-y-5">
             {sessions.length === 0 ? (
-              <div className="text-center py-10 px-2 space-y-1">
-                <HelpCircle className="h-6 w-6 text-zinc-700 mx-auto" />
-                <p className="text-xs text-zinc-500 leading-normal">
+              <div className="text-center py-10 px-2 space-y-2 opacity-60">
+                <HelpCircle className="h-6 w-6 text-textSecondary mx-auto" />
+                <p className="text-xs text-textSecondary leading-normal">
                   No conversation history found.
                 </p>
               </div>
@@ -331,20 +409,20 @@ export const Chat: React.FC = () => {
               <>
                 {groupedSessions.today.length > 0 && (
                   <div className="space-y-1">
-                    <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest px-2.5 block py-1">Today</span>
+                    <span className="text-[10px] font-semibold text-textSecondary uppercase tracking-widest px-2.5 block py-1">Today</span>
                     {groupedSessions.today.map(s => (
                       <div 
                         key={s.id} 
                         onClick={() => handleLoadSession(s)}
                         className={cn(
-                          "w-full flex items-center justify-between px-2.5 py-2 rounded text-xs cursor-pointer transition-colors group",
-                          sessionId === s.id ? "bg-zinc-800/80 text-blue-400 font-medium" : "text-zinc-300 hover:bg-zinc-800/50 hover:text-zinc-100"
+                          "w-full flex items-center justify-between px-2.5 py-2 rounded-md text-sm cursor-pointer transition-colors group",
+                          sessionId === s.id ? "bg-white border border-border shadow-sm text-primary font-medium" : "text-textPrimary hover:bg-white/60 hover:text-primary border border-transparent"
                         )}
                       >
                         <span className="truncate max-w-[150px]">{s.title}</span>
                         <button 
                           onClick={(e) => handleDeleteSession(s.id, e)} 
-                          className="opacity-0 group-hover:opacity-100 hover:text-red-400 p-0.5"
+                          className="opacity-0 group-hover:opacity-100 hover:text-danger p-0.5"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -354,20 +432,20 @@ export const Chat: React.FC = () => {
                 )}
                 {groupedSessions.yesterday.length > 0 && (
                   <div className="space-y-1">
-                    <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest px-2.5 block py-1">Yesterday</span>
+                    <span className="text-[10px] font-semibold text-textSecondary uppercase tracking-widest px-2.5 block py-1">Yesterday</span>
                     {groupedSessions.yesterday.map(s => (
                       <div 
                         key={s.id} 
                         onClick={() => handleLoadSession(s)}
                         className={cn(
-                          "w-full flex items-center justify-between px-2.5 py-2 rounded text-xs cursor-pointer transition-colors group",
-                          sessionId === s.id ? "bg-zinc-800/80 text-blue-400 font-medium" : "text-zinc-300 hover:bg-zinc-800/50 hover:text-zinc-100"
+                          "w-full flex items-center justify-between px-2.5 py-2 rounded-md text-sm cursor-pointer transition-colors group",
+                          sessionId === s.id ? "bg-white border border-border shadow-sm text-primary font-medium" : "text-textPrimary hover:bg-white/60 hover:text-primary border border-transparent"
                         )}
                       >
                         <span className="truncate max-w-[150px]">{s.title}</span>
                         <button 
                           onClick={(e) => handleDeleteSession(s.id, e)} 
-                          className="opacity-0 group-hover:opacity-100 hover:text-red-400 p-0.5"
+                          className="opacity-0 group-hover:opacity-100 hover:text-danger p-0.5"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -377,20 +455,20 @@ export const Chat: React.FC = () => {
                 )}
                 {groupedSessions.earlier.length > 0 && (
                   <div className="space-y-1">
-                    <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest px-2.5 block py-1">Earlier</span>
+                    <span className="text-[10px] font-semibold text-textSecondary uppercase tracking-widest px-2.5 block py-1">Earlier</span>
                     {groupedSessions.earlier.map(s => (
                       <div 
                         key={s.id} 
                         onClick={() => handleLoadSession(s)}
                         className={cn(
-                          "w-full flex items-center justify-between px-2.5 py-2 rounded text-xs cursor-pointer transition-colors group",
-                          sessionId === s.id ? "bg-zinc-800/80 text-blue-400 font-medium" : "text-zinc-300 hover:bg-zinc-800/50 hover:text-zinc-100"
+                          "w-full flex items-center justify-between px-2.5 py-2 rounded-md text-sm cursor-pointer transition-colors group",
+                          sessionId === s.id ? "bg-white border border-border shadow-sm text-primary font-medium" : "text-textPrimary hover:bg-white/60 hover:text-primary border border-transparent"
                         )}
                       >
                         <span className="truncate max-w-[150px]">{s.title}</span>
                         <button 
                           onClick={(e) => handleDeleteSession(s.id, e)} 
-                          className="opacity-0 group-hover:opacity-100 hover:text-red-400 p-0.5"
+                          className="opacity-0 group-hover:opacity-100 hover:text-danger p-0.5"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -405,16 +483,22 @@ export const Chat: React.FC = () => {
       </aside>
 
       {/* Main Conversation View */}
-      <div className="flex-1 flex flex-col h-full bg-[#111827] border border-zinc-800 rounded-xl overflow-hidden relative shadow-lg">
+      <div className="flex-1 flex flex-col h-full bg-background relative z-10 w-full">
         
         {/* Header */}
-        <div className="h-14 border-b border-zinc-800 bg-[#111827] flex items-center justify-between px-6 shrink-0 z-10 relative">
-          <div className="flex items-center space-x-3">
+        <div className="h-14 flex items-center justify-between px-4 shrink-0 relative bg-background/80 backdrop-blur-sm">
+          <div className="flex items-center space-x-2">
+            <button 
+              onClick={() => setIsSidebarOpen(true)}
+              className="md:hidden p-2 text-textSecondary hover:bg-secondary rounded-md"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
             <Select 
               value={selectedWebsiteId}
               onChange={(e) => setSelectedWebsiteId(e.target.value)}
               options={websiteOptions}
-              className="h-8 text-xs bg-zinc-900 border-zinc-800 w-52 sm:w-64 font-medium"
+              className="h-8 text-sm bg-secondary border-transparent w-48 sm:w-64 font-medium focus:ring-0"
             />
           </div>
           
@@ -423,16 +507,16 @@ export const Chat: React.FC = () => {
               variant="ghost" 
               size="sm" 
               onClick={() => setShowConfig(!showConfig)}
-              className={cn("text-zinc-400 hover:text-white text-xs h-8", showConfig && "bg-zinc-800 text-white")}
+              className={cn("text-textSecondary hover:text-textPrimary text-xs h-8", showConfig && "bg-secondary text-textPrimary")}
             >
-              <Sliders className="h-4 w-4 md:mr-1" />
+              <Sliders className="h-4 w-4 md:mr-1.5" />
               <span className="hidden md:inline">Parameters</span>
             </Button>
             <Button 
               variant="ghost" 
               size="sm" 
               onClick={createNewSession}
-              className="h-8 text-zinc-400 hover:text-white text-xs md:hidden"
+              className="h-8 text-textSecondary hover:text-textPrimary text-xs md:hidden"
             >
               <Plus className="h-4 w-4" />
             </Button>
@@ -440,67 +524,80 @@ export const Chat: React.FC = () => {
         </div>
 
         {/* Messages Scroll Area */}
-        <div className="flex-1 overflow-y-auto px-4 md:px-12 py-8 bg-[#0F172A] relative">
+        <div className="flex-1 overflow-y-auto px-4 md:px-0 bg-background relative">
           {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center max-w-2xl mx-auto text-center space-y-10 py-8 animate-fade-in">
-              <div className="h-16 w-16 rounded-2xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/10">
-                <Sparkles className="h-8 w-8 text-blue-500" />
+            <div className="h-full flex flex-col items-center justify-center max-w-2xl mx-auto text-center py-8 animate-fade-in px-4">
+              <div className="h-12 w-12 rounded-full bg-secondary flex items-center justify-center shrink-0 mb-6 border border-border">
+                <Sparkles className="h-6 w-6 text-textSecondary" />
               </div>
-              <div className="space-y-4">
-                <h3 className="text-3xl font-bold text-slate-100 tracking-tight">Welcome to RAGBot</h3>
-                <p className="text-sm text-zinc-400 max-w-md mx-auto leading-relaxed">
-                  I can answer questions based on the knowledge sources you've connected. Ask anything below to get started.
+              <div className="space-y-3 mb-8">
+                <h3 className="text-2xl font-semibold text-textPrimary tracking-tight">How can I help you today?</h3>
+                <p className="text-sm text-textSecondary max-w-md mx-auto">
+                  Ask me anything about the connected knowledge sources.
                 </p>
               </div>
 
-              <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-3 pt-6">
+              <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-3 max-w-xl">
                 {SUGGESTED_QUESTIONS.map((q) => (
                   <button
                     key={q}
                     onClick={() => handleSendMessage(q)}
-                    className="text-left text-sm bg-[#111827] border border-zinc-800 p-4 rounded-xl hover:bg-zinc-800/80 hover:border-zinc-700 transition-all flex items-center justify-between group shadow-sm"
+                    className="text-left text-sm bg-card border border-border p-4 rounded-xl hover:shadow-sm hover:border-border/80 transition-all flex items-center justify-between group"
                   >
-                    <span className="truncate text-zinc-300 font-medium">{q}</span>
-                    <ChevronRight className="h-4 w-4 text-zinc-600 group-hover:text-zinc-300 shrink-0" />
+                    <span className="truncate text-textSecondary group-hover:text-textPrimary font-medium">{q}</span>
+                    <ChevronRight className="h-4 w-4 text-border group-hover:text-textSecondary shrink-0 transition-colors" />
                   </button>
                 ))}
               </div>
             </div>
           ) : (
-            <div className="space-y-8 max-w-3xl mx-auto pb-6">
+            <div className="max-w-3xl mx-auto pb-40 pt-4 px-4 md:px-8 space-y-8">
               {messages.map((msg) => (
                 <div 
                   key={msg.id} 
-                  className={`flex gap-4 md:gap-6 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={cn("flex w-full", msg.role === 'user' ? "justify-end" : "justify-start")}
                 >
-                  {/* Assistant Avatar */}
-                  {msg.role === 'assistant' && (
-                    <div className="h-10 w-10 rounded-xl bg-blue-600/15 border border-blue-900/60 flex items-center justify-center shrink-0 mt-1">
-                      <Bot className="h-5 w-5 text-blue-500" />
-                    </div>
-                  )}
+                  <div className={cn(
+                    "flex max-w-[85%] md:max-w-[80%]",
+                    msg.role === 'user' ? "flex-row-reverse" : "flex-row"
+                  )}>
+                    
+                    {/* Avatar */}
+                    {msg.role === 'assistant' && (
+                      <div className="h-8 w-8 rounded-full border border-border bg-secondary flex items-center justify-center shrink-0 mr-4 mt-1">
+                        <Bot className="h-4 w-4 text-textSecondary" />
+                      </div>
+                    )}
+                    {msg.role === 'user' && (
+                      <div className="h-8 w-8 rounded-full border border-border bg-card flex items-center justify-center shrink-0 ml-4 mt-1">
+                        <User className="h-4 w-4 text-textSecondary" />
+                      </div>
+                    )}
 
-                  {/* Message Bubble Card */}
-                  <div className={`space-y-3 max-w-[85%] md:max-w-[75%] ${msg.role === 'user' ? 'order-1' : 'order-2'}`}>
+                    {/* Bubble */}
                     <div className={cn(
-                      "p-5 rounded-2xl text-[14px] leading-relaxed whitespace-pre-wrap select-text border shadow-sm",
+                      "rounded-2xl text-[15px] px-5 py-3.5 shadow-sm border",
                       msg.role === 'user' 
-                        ? "bg-zinc-800 border-zinc-700 text-zinc-100 rounded-tr-sm" 
-                        : "bg-transparent border-none text-zinc-200 p-0 mt-2"
+                        ? "bg-primary border-primary text-white rounded-tr-sm" 
+                        : "bg-card border-border text-textPrimary rounded-tl-sm w-full"
                     )}>
-                      {msg.content}
+                      {msg.role === 'user' ? (
+                        <div className="whitespace-pre-wrap">{msg.content}</div>
+                      ) : (
+                        <MarkdownContent content={msg.content} />
+                      )}
 
-                      {/* Source Citations & Details Accordion (Assistant Only) */}
+                      {/* Assistant Extras */}
                       {msg.role === 'assistant' && (
-                        <div className="mt-6 space-y-4 w-full">
-                          {/* Sources Overview */}
+                        <div className="mt-5 space-y-4 w-full">
+                          {/* Sources */}
                           {msg.sources && msg.sources.length > 0 && (
-                            <div className="space-y-3">
-                              <span className="text-xs font-semibold text-zinc-500 flex items-center gap-2">
+                            <div className="pt-4 border-t border-border">
+                              <span className="text-xs font-semibold text-textSecondary flex items-center gap-1.5 mb-3">
                                 <Database className="h-3.5 w-3.5" /> 
-                                Sources Evaluated ({msg.sources.length})
+                                Sources Evaluated
                               </span>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 {msg.sources.map((src, i) => {
                                   const matchPercent = Math.round(src.score * 100);
                                   return (
@@ -509,17 +606,17 @@ export const Chat: React.FC = () => {
                                       target="_blank" 
                                       rel="noreferrer" 
                                       key={i} 
-                                      className="block bg-[#111827] border border-zinc-800 hover:border-zinc-700 rounded-lg p-3 transition-colors group cursor-pointer"
+                                      className="block bg-secondary border border-border hover:border-primary/30 rounded-lg p-2.5 transition-colors group cursor-pointer"
                                     >
-                                      <div className="flex items-start justify-between gap-2 mb-1.5">
-                                        <h5 className="text-xs font-medium text-zinc-300 truncate group-hover:text-blue-400 transition-colors">
+                                      <div className="flex items-center justify-between gap-2 mb-1">
+                                        <h5 className="text-xs font-semibold text-textPrimary truncate group-hover:text-primary transition-colors">
                                           {getFriendlyName(src.url)}
                                         </h5>
-                                        <Badge variant={matchPercent >= 60 ? 'success' : 'default'} className="text-[9px] font-mono shrink-0 px-1.5 py-0">
+                                        <Badge variant={matchPercent >= 60 ? 'success' : 'default'} className="text-[9px] font-mono shrink-0 px-1.5 py-0 bg-background border-border text-textSecondary">
                                           {matchPercent}%
                                         </Badge>
                                       </div>
-                                      <p className="text-[11px] leading-relaxed text-zinc-500 line-clamp-2">
+                                      <p className="text-[11px] leading-relaxed text-textSecondary line-clamp-2">
                                         "{src.snippet}"
                                       </p>
                                     </a>
@@ -529,44 +626,42 @@ export const Chat: React.FC = () => {
                             </div>
                           )}
 
-                          {/* Developer Details Accordion */}
-                          <div className="pt-2 border-t border-zinc-800/60">
+                          {/* Details Accordion */}
+                          <div className="pt-2">
                             <button
                               onClick={() => toggleDetails(msg.id)}
-                              className="flex items-center gap-2 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                              className="flex items-center gap-1.5 text-xs font-medium text-textSecondary hover:text-textPrimary transition-colors"
                             >
                               {expandedDetails[msg.id] ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                               View Retrieval Details
                             </button>
                             
                             {expandedDetails[msg.id] && (
-                              <div className="mt-4 bg-[#111827] border border-zinc-800 rounded-lg p-4 space-y-4 animate-fade-in text-xs font-mono text-zinc-400">
-                                {/* Latency */}
+                              <div className="mt-3 bg-secondary border border-border rounded-lg p-4 space-y-4 animate-fade-in text-xs font-mono text-textSecondary">
                                 <div className="space-y-2">
-                                  <span className="text-zinc-500 uppercase tracking-widest text-[10px] font-sans font-bold">Performance</span>
+                                  <span className="text-textSecondary uppercase tracking-widest text-[9px] font-sans font-bold">Performance Breakdown</span>
                                   <div className="grid grid-cols-3 gap-2 text-center">
-                                    <div className="bg-[#0F172A] p-2 rounded border border-zinc-800/50">
-                                      <div className="text-zinc-300 font-semibold">{msg.retrievalLatencyMs}ms</div>
-                                      <div className="text-[9px] text-zinc-600 mt-0.5">Vector Search</div>
+                                    <div className="bg-card p-2 rounded border border-border shadow-sm">
+                                      <div className="text-textPrimary font-semibold">{msg.retrievalLatencyMs}ms</div>
+                                      <div className="text-[9px] text-textSecondary mt-0.5">Vector Search</div>
                                     </div>
-                                    <div className="bg-[#0F172A] p-2 rounded border border-zinc-800/50">
-                                      <div className="text-zinc-300 font-semibold">{msg.generationLatencyMs}ms</div>
-                                      <div className="text-[9px] text-zinc-600 mt-0.5">LLM Generation</div>
+                                    <div className="bg-card p-2 rounded border border-border shadow-sm">
+                                      <div className="text-textPrimary font-semibold">{msg.generationLatencyMs}ms</div>
+                                      <div className="text-[9px] text-textSecondary mt-0.5">LLM Gen</div>
                                     </div>
-                                    <div className="bg-[#0F172A] p-2 rounded border border-zinc-800/50">
-                                      <div className="text-blue-400 font-semibold">{msg.totalLatencyMs}ms</div>
-                                      <div className="text-[9px] text-zinc-600 mt-0.5">Total Time</div>
+                                    <div className="bg-card p-2 rounded border border-border shadow-sm">
+                                      <div className="text-primary font-semibold">{msg.totalLatencyMs}ms</div>
+                                      <div className="text-[9px] text-textSecondary mt-0.5">Total Time</div>
                                     </div>
                                   </div>
                                 </div>
-                                {/* Chunks */}
                                 {msg.chunksUsed && msg.chunksUsed.length > 0 && (
-                                  <div className="space-y-2">
-                                    <span className="text-zinc-500 uppercase tracking-widest text-[10px] font-sans font-bold">Chunk Index Keys</span>
+                                  <div className="space-y-2 pt-2 border-t border-border/50">
+                                    <span className="text-textSecondary uppercase tracking-widest text-[9px] font-sans font-bold">Chunk Vectors (Top K)</span>
                                     <div className="flex flex-wrap gap-1.5">
                                       {msg.chunksUsed.map((chk, i) => (
-                                        <span key={i} className="bg-[#0F172A] border border-zinc-800/50 px-2 py-1 rounded text-[10px]">
-                                          {chk}
+                                        <span key={i} className="bg-card border border-border px-2 py-1 rounded text-[9px]">
+                                          {chk.substring(0, 8)}...
                                         </span>
                                       ))}
                                     </div>
@@ -576,79 +671,80 @@ export const Chat: React.FC = () => {
                             )}
                           </div>
                           
-                          {/* Assistant Footer Actions */}
-                          <div className="flex items-center justify-end">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
+                          {/* Footer Actions */}
+                          <div className="flex items-center justify-end pt-2">
+                            <button 
                               onClick={() => copyToClipboard(msg.content, msg.id)}
-                              className="h-7 px-2 text-xs text-zinc-500 hover:text-zinc-300"
+                              className="flex items-center text-[11px] font-medium text-textSecondary hover:text-textPrimary transition-colors"
                             >
                               {copiedId === msg.id ? (
-                                <><Check className="h-3.5 w-3.5 mr-1.5 text-emerald-400" /> Copied</>
+                                <><Check className="h-3 w-3 mr-1 text-success" /> Copied</>
                               ) : (
-                                <><Copy className="h-3.5 w-3.5 mr-1.5" /> Copy</>
+                                <><Copy className="h-3 w-3 mr-1" /> Copy Response</>
                               )}
-                            </Button>
+                            </button>
                           </div>
                         </div>
                       )}
                     </div>
                   </div>
-
-                  {/* User avatar */}
-                  {msg.role === 'user' && (
-                    <div className="h-10 w-10 rounded-xl bg-zinc-800 flex items-center justify-center shrink-0 order-3 mt-1 shadow-sm border border-zinc-700">
-                      <User className="h-5 w-5 text-zinc-300" />
-                    </div>
-                  )}
                 </div>
               ))}
 
               {/* Loading Indicator */}
               {loading && (
-                <div className="flex gap-4 md:gap-6 justify-start animate-fade-in">
-                  <div className="h-10 w-10 rounded-xl bg-blue-600/10 border border-blue-900/40 flex items-center justify-center shrink-0 mt-1">
-                    <Bot className="h-5 w-5 text-blue-500 animate-pulse" />
-                  </div>
-                  <div className="bg-[#111827] border border-zinc-800/60 p-4 rounded-xl text-sm text-zinc-400 flex items-center space-x-3 rounded-tl-sm shadow-sm mt-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
-                    <span className="font-medium text-zinc-300">{thinkingMessages[thinkingPhase]}</span>
+                <div className="flex w-full justify-start animate-fade-in">
+                  <div className="flex max-w-[80%] flex-row">
+                    <div className="h-8 w-8 rounded-full border border-border bg-secondary flex items-center justify-center shrink-0 mr-4 mt-1">
+                      <Bot className="h-4 w-4 text-textSecondary animate-pulse" />
+                    </div>
+                    <div className="bg-card border border-border px-4 py-3 rounded-2xl rounded-tl-sm shadow-sm flex items-center space-x-2 text-sm text-textSecondary">
+                      <div className="flex space-x-1">
+                        <div className="h-2 w-2 bg-border rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <div className="h-2 w-2 bg-border rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <div className="h-2 w-2 bg-border rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
+                      <span className="pl-2">{thinkingMessages[thinkingPhase]}</span>
+                    </div>
                   </div>
                 </div>
               )}
-
+              
               <div ref={messagesEndRef} className="h-4" />
             </div>
           )}
         </div>
 
-        {/* Sticky Input Composer */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 md:p-6 bg-gradient-to-t from-[#0F172A] via-[#0F172A] to-transparent pointer-events-none">
+        {/* Input Composer */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 md:p-6 bg-gradient-to-t from-background via-background to-transparent pointer-events-none">
           <div className="max-w-3xl mx-auto relative pointer-events-auto">
-            <div className="bg-[#111827] border border-zinc-700 focus-within:border-zinc-500 rounded-2xl shadow-xl transition-all duration-200 overflow-hidden">
+            <div className="bg-card border border-border focus-within:border-primary/30 focus-within:ring-4 focus-within:ring-primary/5 rounded-2xl shadow-lg transition-all duration-200 overflow-hidden relative">
               <textarea
                 ref={textareaRef}
                 value={inputMessage}
                 onChange={adjustTextareaHeight}
                 onKeyDown={handleKeyDown}
                 disabled={loading}
-                placeholder="Ask anything about your connected knowledge sources..."
-                className="w-full max-h-48 bg-transparent text-zinc-200 text-[14px] p-4 pr-14 resize-none focus:outline-none placeholder:text-zinc-500"
+                placeholder="Ask me anything..."
+                className="w-full max-h-[200px] bg-transparent text-textPrimary text-[15px] px-4 py-4 pr-14 resize-none focus:outline-none placeholder:text-textSecondary/60 leading-relaxed"
                 rows={1}
+                style={{ minHeight: '56px' }}
               />
-              <div className="absolute right-3 bottom-3 flex items-center justify-end">
+              <div className="absolute right-2 bottom-2">
                 <Button 
                   onClick={() => handleSendMessage(inputMessage)}
                   disabled={loading || !inputMessage.trim()}
-                  className="h-8 w-8 p-0 rounded-lg bg-white hover:bg-zinc-200 text-black shadow disabled:opacity-50 disabled:bg-zinc-800 disabled:text-zinc-500 transition-colors"
+                  className={cn(
+                    "h-9 w-9 p-0 rounded-xl flex items-center justify-center transition-all duration-200",
+                    inputMessage.trim() ? "bg-primary hover:bg-primary/90 text-white shadow-sm" : "bg-secondary text-textSecondary border border-border"
+                  )}
                 >
-                  <Send className="h-4 w-4" />
+                  <Send className="h-4 w-4 ml-0.5" />
                 </Button>
               </div>
             </div>
-            <div className="text-center mt-2.5">
-              <span className="text-[10px] text-zinc-500">
+            <div className="text-center mt-3">
+              <span className="text-[11px] text-textSecondary">
                 AI can make mistakes. Consider verifying important information.
               </span>
             </div>
@@ -658,65 +754,68 @@ export const Chat: React.FC = () => {
 
       {/* Slide-over Params Configuration Drawer */}
       {showConfig && (
-        <div className="absolute top-14 right-0 w-80 h-[calc(100%-3.5rem)] bg-[#111827] border-l border-zinc-800 shadow-2xl z-20 animate-slide-in flex flex-col">
-          <div className="p-5 border-b border-zinc-800 flex justify-between items-center bg-[#0F172A]">
-            <span className="text-xs font-semibold text-zinc-300 flex items-center gap-2">
-              <Sliders className="h-4 w-4" />
-              Search Parameters
-            </span>
-            <Button variant="ghost" size="sm" onClick={() => setShowConfig(false)} className="h-7 px-2 text-zinc-400 hover:text-white">
-              Close
-            </Button>
-          </div>
-
-          <div className="flex-1 p-5 space-y-6 overflow-y-auto">
-            <div className="space-y-3">
-              <label className="text-xs text-zinc-400 font-medium">Metadata Category Filter</label>
-              <Input 
-                type="text" 
-                placeholder="e.g. guide, tutorial, blog"
-                value={selectedPageType}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedPageType(e.target.value)}
-                className="h-9 text-xs bg-zinc-900 border-zinc-800"
-              />
-              <p className="text-[10px] text-zinc-550">Filter search results to a specific pageType tag.</p>
+        <>
+          <div className="fixed inset-0 bg-textPrimary/10 z-40 md:hidden backdrop-blur-sm" onClick={() => setShowConfig(false)} />
+          <div className="absolute top-0 right-0 h-full w-80 bg-card border-l border-border shadow-2xl z-50 animate-slide-in flex flex-col">
+            <div className="p-5 border-b border-border flex justify-between items-center bg-secondary/30">
+              <span className="text-sm font-semibold text-textPrimary flex items-center gap-2">
+                <Sliders className="h-4 w-4" />
+                Search Parameters
+              </span>
+              <button onClick={() => setShowConfig(false)} className="text-textSecondary hover:text-textPrimary p-1 rounded-md hover:bg-border/50">
+                <X className="h-5 w-5" />
+              </button>
             </div>
 
-            <div className="space-y-3">
-              <div className="flex justify-between text-xs">
-                <span className="text-zinc-400 font-medium">Minimum Similarity Threshold</span>
-                <span className="font-mono text-zinc-300">{minSimilarity}</span>
+            <div className="flex-1 p-5 space-y-6 overflow-y-auto">
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-textPrimary">Metadata Filter</label>
+                <Input 
+                  type="text" 
+                  placeholder="e.g. guide, tutorial, blog"
+                  value={selectedPageType}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedPageType(e.target.value)}
+                  className="bg-background border-border text-sm"
+                />
+                <p className="text-[11px] text-textSecondary">Filter search results to a specific pageType tag.</p>
               </div>
-              <input 
-                type="range" 
-                min="0.10" 
-                max="0.90" 
-                step="0.05" 
-                value={minSimilarity}
-                onChange={(e) => setMinSimilarity(parseFloat(e.target.value))}
-                className="w-full accent-blue-500 bg-zinc-800 h-1.5 rounded-lg cursor-pointer"
-              />
-              <p className="text-[10px] text-zinc-550">Higher values require stricter vector cosine similarity matching.</p>
-            </div>
 
-            <div className="space-y-3">
-              <div className="flex justify-between text-xs">
-                <span className="text-zinc-400 font-medium">Context Chunks (Top-K)</span>
-                <span className="font-mono text-zinc-300">{topK} chunks</span>
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-textPrimary font-medium">Similarity Threshold</span>
+                  <span className="font-mono text-textSecondary bg-secondary px-2 rounded">{minSimilarity}</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="0.10" 
+                  max="0.90" 
+                  step="0.05" 
+                  value={minSimilarity}
+                  onChange={(e) => setMinSimilarity(parseFloat(e.target.value))}
+                  className="w-full accent-primary bg-secondary h-1.5 rounded-lg cursor-pointer"
+                />
+                <p className="text-[11px] text-textSecondary">Higher values require stricter matching.</p>
               </div>
-              <input 
-                type="range" 
-                min="1" 
-                max="10" 
-                step="1" 
-                value={topK}
-                onChange={(e) => setTopK(parseInt(e.target.value))}
-                className="w-full accent-blue-500 bg-zinc-800 h-1.5 rounded-lg cursor-pointer"
-              />
-              <p className="text-[10px] text-zinc-550">Number of related database chunks to retrieve and pass to the LLM.</p>
+
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-textPrimary font-medium">Context Chunks (Top-K)</span>
+                  <span className="font-mono text-textSecondary bg-secondary px-2 rounded">{topK} chunks</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="1" 
+                  max="10" 
+                  step="1" 
+                  value={topK}
+                  onChange={(e) => setTopK(parseInt(e.target.value))}
+                  className="w-full accent-primary bg-secondary h-1.5 rounded-lg cursor-pointer"
+                />
+                <p className="text-[11px] text-textSecondary">Number of segments to retrieve.</p>
+              </div>
             </div>
           </div>
-        </div>
+        </>
       )}
 
     </div>

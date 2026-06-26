@@ -1,0 +1,17 @@
+.git
+.gitignore
+.vscode
+.idea
+**/node_modules
+**/dist
+**/target
+**/build
+**/.mvn
+**/.gradle
+**/coverage
+**/*.log
+**/*.tsbuildinfo
+**/.DS_Store
+**/*.class
+**/*.jar
+**/*.war

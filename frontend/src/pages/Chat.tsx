@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { websiteStore } from '../store/websiteStore';
+import { chatStore } from '../store/chatStore';
 import { apiService } from '../services/api';
-import { Website, SourceDto } from '../types';
+import { ChatMessage, ChatSession } from '../types/index';
 import { cn } from '../lib/utils';
 import { 
   Send, 
   Bot, 
   User, 
   Sparkles, 
-  Trash2, 
-  Plus, 
   ChevronRight,
   Sliders,
   Copy,
@@ -18,14 +17,12 @@ import {
   ChevronDown,
   ChevronUp,
   Database,
-  HelpCircle,
-  Menu,
-  X
+  X,
+  Globe
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
-import { Select } from '../components/ui/Select';
 import ReactMarkdown from 'react-markdown';
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
 import tsx from 'react-syntax-highlighter/dist/esm/languages/prism/tsx';
@@ -48,26 +45,6 @@ SyntaxHighlighter.registerLanguage('bash', bash);
 SyntaxHighlighter.registerLanguage('json', json);
 SyntaxHighlighter.registerLanguage('css', css);
 SyntaxHighlighter.registerLanguage('markdown', markdown);
-
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  sources?: SourceDto[];
-  chunksUsed?: string[];
-  totalLatencyMs?: number;
-  retrievalLatencyMs?: number;
-  generationLatencyMs?: number;
-}
-
-interface ChatSession {
-  id: string;
-  title: string;
-  timestamp: string;
-  messages: ChatMessage[];
-  selectedWebsiteId?: string;
-  selectedPageType?: string;
-}
 
 const SUGGESTED_QUESTIONS = [
   "What is Spring Boot?",
@@ -139,49 +116,43 @@ const MarkdownContent = ({ content }: { content: string }) => {
 };
 
 export const Chat: React.FC = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [sessionId, setSessionId] = useState<string>('');
+  const { websiteId } = useParams<{ websiteId: string }>();
+  const navigate = useNavigate();
+  const website = websiteStore.getWebsites().find(w => w.id === Number(websiteId));
+
+  const [sessionId, setSessionId] = useState<string>(`session-${websiteId}`);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const [websites, setWebsites] = useState<Website[]>([]);
-  const [selectedWebsiteId, setSelectedWebsiteId] = useState<string>('all');
   const [selectedPageType, setSelectedPageType] = useState<string>('');
   const [minSimilarity, setMinSimilarity] = useState<number>(0.35);
   const [topK, setTopK] = useState<number>(4);
   
   const [showConfig, setShowConfig] = useState(false);
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [thinkingPhase, setThinkingPhase] = useState(0);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
   const [expandedDetails, setExpandedDetails] = useState<Record<string, boolean>>({});
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    const list = websiteStore.getWebsites().filter(w => w.status === 'CRAWLED');
-    setWebsites(list);
-
-    const storedHistory = localStorage.getItem('ragbot_chat_history');
-    if (storedHistory) {
-      try {
-        setSessions(JSON.parse(storedHistory));
-      } catch (e) {
-        console.error('Failed to parse chat sessions', e);
-      }
+    if (!website || website.status !== 'CRAWLED') {
+      navigate('/websites', { replace: true });
+      return;
     }
 
-    const websiteParam = searchParams.get('websiteId');
-    if (websiteParam) {
-      setSelectedWebsiteId(websiteParam);
+    const session = chatStore.getSession(website.id);
+    if (session) {
+      setMessages(session.messages);
+      setSessionId(session.id);
+      if (session.selectedPageType) setSelectedPageType(session.selectedPageType);
+    } else {
+      setMessages([]);
+      setSessionId(`session-${website.id}`);
     }
-    
-    createNewSession();
-  }, []);
+  }, [websiteId, website, navigate]);
 
   useEffect(() => {
     if (!loading) {
@@ -194,70 +165,28 @@ export const Chat: React.FC = () => {
     return () => clearInterval(interval);
   }, [loading]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading]);
 
-  const createNewSession = () => {
-    const newId = Math.random().toString(36).substring(2, 15);
-    setSessionId(newId);
-    setMessages([]);
-    setInputMessage('');
-    setExpandedDetails({});
-    setSearchParams({});
-    setIsSidebarOpen(false);
-  };
 
   const persistSession = (updatedMessages: ChatMessage[]) => {
-    if (updatedMessages.length === 0) return;
-    setSessions(prev => {
-      const existingIdx = prev.findIndex(s => s.id === sessionId);
-      const firstUserMsg = updatedMessages.find(m => m.role === 'user')?.content || 'New Conversation';
-      const title = firstUserMsg.length > 28 ? firstUserMsg.substring(0, 26) + '...' : firstUserMsg;
+    if (!website || updatedMessages.length === 0) return;
+    
+    const firstUserMsg = updatedMessages.find(m => m.role === 'user')?.content || 'New Conversation';
+    const title = firstUserMsg.length > 28 ? firstUserMsg.substring(0, 26) + '...' : firstUserMsg;
 
-      const sessionObj: ChatSession = {
-        id: sessionId,
-        title,
-        timestamp: new Date().toISOString(),
-        messages: updatedMessages,
-        selectedWebsiteId,
-        selectedPageType
-      };
+    const sessionObj: ChatSession = {
+      id: sessionId,
+      title,
+      timestamp: new Date().toISOString(),
+      messages: updatedMessages,
+      selectedWebsiteId: website.id.toString(),
+      selectedPageType
+    };
 
-      let newSessions = [...prev];
-      if (existingIdx !== -1) {
-        newSessions[existingIdx] = sessionObj;
-      } else {
-        newSessions.unshift(sessionObj);
-      }
-      localStorage.setItem('ragbot_chat_history', JSON.stringify(newSessions));
-      return newSessions;
-    });
-  };
-
-  const handleLoadSession = (sess: ChatSession) => {
-    setSessionId(sess.id);
-    setMessages(sess.messages);
-    if (sess.selectedWebsiteId) setSelectedWebsiteId(sess.selectedWebsiteId);
-    if (sess.selectedPageType) setSelectedPageType(sess.selectedPageType);
-    setExpandedDetails({});
-    setIsSidebarOpen(false);
-  };
-
-  const handleDeleteSession = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setSessions(prev => {
-      const filtered = prev.filter(s => s.id !== id);
-      localStorage.setItem('ragbot_chat_history', JSON.stringify(filtered));
-      return filtered;
-    });
-    if (sessionId === id) {
-      createNewSession();
-    }
+    chatStore.saveSession(website.id, sessionObj);
   };
 
   const handleSendMessage = async (text: string) => {
-    if (!text.trim() || loading) return;
+    if (!text.trim() || loading || !website) return;
 
     const userMsg: ChatMessage = {
       id: Math.random().toString(36).substring(7),
@@ -274,12 +203,11 @@ export const Chat: React.FC = () => {
     setLoading(true);
 
     try {
-      const siteId = selectedWebsiteId === 'all' ? undefined : parseInt(selectedWebsiteId);
       const res = await apiService.chat(
         sessionId,
         text,
-        siteId,
-        undefined,
+        website.id,
+        [website.id],
         selectedPageType || undefined,
         minSimilarity,
         topK
@@ -338,189 +266,61 @@ export const Chat: React.FC = () => {
     setExpandedDetails(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const websiteOptions = [
-    { value: 'all', label: 'All Knowledge Sources' },
-    ...websites.map(w => ({ value: w.id.toString(), label: getFriendlyName(w.url) }))
-  ];
-
-  const getGroupedSessions = () => {
-    const today: ChatSession[] = [];
-    const yesterday: ChatSession[] = [];
-    const earlier: ChatSession[] = [];
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
-
-    sessions.forEach(s => {
-      const time = new Date(s.timestamp).getTime();
-      if (time >= todayStart) today.push(s);
-      else if (time >= yesterdayStart) yesterday.push(s);
-      else earlier.push(s);
-    });
-
-    return { today, yesterday, earlier };
-  };
-
-  const groupedSessions = getGroupedSessions();
-
   const thinkingMessages = [
     "Searching knowledge base...",
     "Analyzing context...",
     "Formulating response..."
   ];
 
+  if (!website) return null;
+
   return (
     <div className="flex h-[calc(100vh-8.5rem)] w-full relative overflow-hidden bg-background">
       
-      {/* Mobile Sidebar Overlay */}
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-textPrimary/20 z-40 md:hidden backdrop-blur-sm"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-
-      {/* Sidebar: Recent Conversations */}
-      <aside className={cn(
-        "absolute md:relative z-50 w-64 h-full border-r border-border bg-secondary flex flex-col justify-between shrink-0 overflow-y-auto transition-transform duration-300 ease-in-out",
-        isSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-      )}>
-        <div className="flex flex-col h-full">
-          <div className="p-4 flex items-center justify-between shrink-0">
-            <span className="text-xs font-semibold text-textSecondary uppercase tracking-widest">Chat History</span>
-            <button 
-              onClick={createNewSession}
-              className="text-textSecondary hover:text-textPrimary p-1.5 rounded-md hover:bg-border/50 transition-colors"
-              title="New thread"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-3 space-y-5">
-            {sessions.length === 0 ? (
-              <div className="text-center py-10 px-2 space-y-2 opacity-60">
-                <HelpCircle className="h-6 w-6 text-textSecondary mx-auto" />
-                <p className="text-xs text-textSecondary leading-normal">
-                  No conversation history found.
-                </p>
-              </div>
-            ) : (
-              <>
-                {groupedSessions.today.length > 0 && (
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-semibold text-textSecondary uppercase tracking-widest px-2.5 block py-1">Today</span>
-                    {groupedSessions.today.map(s => (
-                      <div 
-                        key={s.id} 
-                        onClick={() => handleLoadSession(s)}
-                        className={cn(
-                          "w-full flex items-center justify-between px-2.5 py-2 rounded-md text-sm cursor-pointer transition-colors group",
-                          sessionId === s.id ? "bg-white border border-border shadow-sm text-primary font-medium" : "text-textPrimary hover:bg-white/60 hover:text-primary border border-transparent"
-                        )}
-                      >
-                        <span className="truncate max-w-[150px]">{s.title}</span>
-                        <button 
-                          onClick={(e) => handleDeleteSession(s.id, e)} 
-                          className="opacity-0 group-hover:opacity-100 hover:text-danger p-0.5"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {groupedSessions.yesterday.length > 0 && (
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-semibold text-textSecondary uppercase tracking-widest px-2.5 block py-1">Yesterday</span>
-                    {groupedSessions.yesterday.map(s => (
-                      <div 
-                        key={s.id} 
-                        onClick={() => handleLoadSession(s)}
-                        className={cn(
-                          "w-full flex items-center justify-between px-2.5 py-2 rounded-md text-sm cursor-pointer transition-colors group",
-                          sessionId === s.id ? "bg-white border border-border shadow-sm text-primary font-medium" : "text-textPrimary hover:bg-white/60 hover:text-primary border border-transparent"
-                        )}
-                      >
-                        <span className="truncate max-w-[150px]">{s.title}</span>
-                        <button 
-                          onClick={(e) => handleDeleteSession(s.id, e)} 
-                          className="opacity-0 group-hover:opacity-100 hover:text-danger p-0.5"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {groupedSessions.earlier.length > 0 && (
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-semibold text-textSecondary uppercase tracking-widest px-2.5 block py-1">Earlier</span>
-                    {groupedSessions.earlier.map(s => (
-                      <div 
-                        key={s.id} 
-                        onClick={() => handleLoadSession(s)}
-                        className={cn(
-                          "w-full flex items-center justify-between px-2.5 py-2 rounded-md text-sm cursor-pointer transition-colors group",
-                          sessionId === s.id ? "bg-white border border-border shadow-sm text-primary font-medium" : "text-textPrimary hover:bg-white/60 hover:text-primary border border-transparent"
-                        )}
-                      >
-                        <span className="truncate max-w-[150px]">{s.title}</span>
-                        <button 
-                          onClick={(e) => handleDeleteSession(s.id, e)} 
-                          className="opacity-0 group-hover:opacity-100 hover:text-danger p-0.5"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      </aside>
-
       {/* Main Conversation View */}
       <div className="flex-1 flex flex-col h-full bg-background relative z-10 w-full">
         
         {/* Header */}
-        <div className="h-14 flex items-center justify-between px-4 shrink-0 relative bg-background/80 backdrop-blur-sm">
-          <div className="flex items-center space-x-2">
-            <button 
-              onClick={() => setIsSidebarOpen(true)}
-              className="md:hidden p-2 text-textSecondary hover:bg-secondary rounded-md"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-            <Select 
-              value={selectedWebsiteId}
-              onChange={(e) => setSelectedWebsiteId(e.target.value)}
-              options={websiteOptions}
-              className="h-8 text-sm bg-secondary border-transparent w-48 sm:w-64 font-medium focus:ring-0"
-            />
+        <div className="h-16 flex items-center justify-between px-4 md:px-8 shrink-0 relative bg-background/80 backdrop-blur-sm border-b border-border/50">
+          <div className="flex flex-col">
+            <div className="flex items-center text-[10px] text-textSecondary uppercase tracking-wider font-semibold mb-1 cursor-pointer hover:text-textPrimary transition-colors" onClick={() => navigate('/websites')}>
+              <Globe className="h-3 w-3 mr-1" />
+              Knowledge Bases <ChevronRight className="h-3 w-3 mx-1" /> 
+              <span className="text-primary truncate max-w-[150px] md:max-w-xs">{getFriendlyName(website.url)}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-bold text-textPrimary leading-none">{getFriendlyName(website.url)}</h1>
+              <Badge variant="success" className="text-[10px] h-5 font-medium flex items-center px-1.5"><Check className="h-3 w-3 mr-0.5" /> Ready</Badge>
+            </div>
           </div>
           
-          <div className="flex items-center space-x-2">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => setShowConfig(!showConfig)}
-              className={cn("text-textSecondary hover:text-textPrimary text-xs h-8", showConfig && "bg-secondary text-textPrimary")}
-            >
-              <Sliders className="h-4 w-4 md:mr-1.5" />
-              <span className="hidden md:inline">Parameters</span>
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={createNewSession}
-              className="h-8 text-textSecondary hover:text-textPrimary text-xs md:hidden"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
+          <div className="flex flex-col items-end text-xs text-textSecondary">
+            <div className="flex items-center gap-3 font-medium">
+              <span>{website.pagesCrawled} Pages</span>
+              <span>&bull;</span>
+              <span>{website.chunksCreated} Chunks</span>
+            </div>
+            <div className="flex items-center gap-1 mt-1 opacity-70 text-[10px]">
+               Using Qwen 2.5 + Nomic
+            </div>
           </div>
+        </div>
+
+        {/* Action Bar */}
+        <div className="flex items-center justify-between px-4 py-1.5 bg-secondary/30 border-b border-border/30 text-[11px] text-textSecondary">
+          <div className="flex items-center gap-1 font-medium">
+            <Sparkles className="h-3 w-3" />
+            Answers are generated only from this documentation.
+          </div>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setShowConfig(!showConfig)}
+            className={cn("text-textSecondary hover:text-textPrimary text-[11px] h-6 px-2", showConfig && "bg-secondary text-textPrimary")}
+          >
+            <Sliders className="h-3 w-3 md:mr-1.5" />
+            <span className="hidden md:inline">Parameters</span>
+          </Button>
         </div>
 
         {/* Messages Scroll Area */}
@@ -533,7 +333,7 @@ export const Chat: React.FC = () => {
               <div className="space-y-3 mb-8">
                 <h3 className="text-2xl font-semibold text-textPrimary tracking-tight">How can I help you today?</h3>
                 <p className="text-sm text-textSecondary max-w-md mx-auto">
-                  Ask me anything about the connected knowledge sources.
+                  Ask me anything about {getFriendlyName(website.url)}.
                 </p>
               </div>
 

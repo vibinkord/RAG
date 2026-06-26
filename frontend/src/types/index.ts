@@ -123,3 +123,23 @@ export interface IngestionResponse {
   chunksCreated: number;
   message: string;
 }
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  sources?: SourceDto[];
+  chunksUsed?: string[];
+  totalLatencyMs?: number;
+  retrievalLatencyMs?: number;
+  generationLatencyMs?: number;
+}
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  timestamp: string;
+  messages: ChatMessage[];
+  selectedWebsiteId?: string;
+  selectedPageType?: string;
+}

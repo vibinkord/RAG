@@ -11,7 +11,6 @@ import {
   ChevronRight,
   Sparkles,
   Settings,
-  PlusCircle,
   User,
   Moon
 } from 'lucide-react';
@@ -40,9 +39,8 @@ export const DashboardLayout: React.FC = () => {
     {
       group: 'Workspace',
       items: [
-        { to: '/chat', label: 'New Chat', icon: PlusCircle },
         { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-        { to: '/websites', label: 'Knowledge Sources', icon: Globe },
+        { to: '/websites', label: 'Knowledge Bases', icon: Globe },
       ]
     },
     {
@@ -118,7 +116,7 @@ export const DashboardLayout: React.FC = () => {
     const websites = websiteStore.getWebsites();
     websites.forEach(w => {
       if (w.url.toLowerCase().includes(queryLower)) {
-        matches.push({ type: 'Source', label: w.url, to: `/chat?websiteId=${w.id}` });
+        matches.push({ type: 'Source', label: w.url, to: `/websites/${w.id}/chat` });
       }
     });
 
@@ -146,8 +144,8 @@ export const DashboardLayout: React.FC = () => {
 
   // Retrieve current page title for Topbar
   const getPageTitle = () => {
-    if (location.pathname.startsWith('/chat')) return 'Chat';
-    if (location.pathname.startsWith('/websites')) return 'Knowledge Sources';
+    if (location.pathname.match(/^\/websites\/\d+\/chat/)) return 'AI Assistant';
+    if (location.pathname.startsWith('/websites')) return 'Knowledge Bases';
     if (location.pathname.startsWith('/search')) return 'Search Playground';
     if (location.pathname.startsWith('/evaluate')) return 'Evaluation';
     if (location.pathname.startsWith('/dashboard')) return 'Dashboard';
@@ -188,9 +186,7 @@ export const DashboardLayout: React.FC = () => {
             )}
             <nav className="space-y-1">
               {g.items.map((item) => {
-                // Special style for 'New Chat'
-                const isNewChat = item.to === '/chat';
-                
+                // Special style logic removed for global chat
                 return (
                   <NavLink
                     key={item.to}
@@ -203,12 +199,11 @@ export const DashboardLayout: React.FC = () => {
                         isActive
                           ? "bg-white shadow-sm text-primary"
                           : "text-textSecondary hover:text-textPrimary hover:bg-border/30",
-                        isNewChat && !isActive && !isCollapsed ? "border border-border bg-white shadow-sm hover:border-primary/30" : ""
                       )
                     }
                     title={isCollapsed ? item.label : undefined}
                   >
-                    <item.icon className={cn("h-4 w-4 shrink-0", isNewChat && !isCollapsed && "text-primary")} />
+                    <item.icon className={cn("h-4 w-4 shrink-0")} />
                     {!isCollapsed && <span>{item.label}</span>}
                   </NavLink>
                 );

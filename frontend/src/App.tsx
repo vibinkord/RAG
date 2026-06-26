@@ -23,13 +23,14 @@ export const App: React.FC = () => {
       <BrowserRouter>
         <Routes>
           <Route element={<DashboardLayout />}>
-            <Route path="/" element={<Navigate to="/chat" replace />} />
+            <Route path="/" element={<Navigate to="/websites" replace />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/websites" element={<Websites />} />
-            <Route path="/chat" element={<Chat />} />
+            <Route path="/websites/:websiteId/chat" element={<Chat />} />
+            <Route path="/chat" element={<Navigate to="/websites" replace />} />
             <Route path="/search" element={<SearchPlayground />} />
             <Route path="/evaluate" element={<Evaluation />} />
-            <Route path="*" element={<Navigate to="/chat" replace />} />
+            <Route path="*" element={<Navigate to="/websites" replace />} />
           </Route>
         </Routes>
       </BrowserRouter>

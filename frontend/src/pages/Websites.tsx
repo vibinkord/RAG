@@ -226,9 +226,9 @@ export const Websites: React.FC = () => {
       {/* Header section */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-textPrimary tracking-tight">Knowledge Sources</h2>
+          <h2 className="text-2xl font-bold text-textPrimary tracking-tight">Knowledge Bases</h2>
           <p className="text-sm text-textSecondary mt-1">
-            {websites.length} {websites.length === 1 ? 'Source' : 'Sources'} Connected &bull; Add websites to index paragraphs and ask questions.
+            {websites.length} {websites.length === 1 ? 'Base' : 'Bases'} Connected &bull; Add websites to index paragraphs and ask questions.
           </p>
         </div>
         <Button onClick={() => setIsAddModalOpen(true)} className="sm:self-start bg-primary hover:bg-primary/90 text-white font-medium shadow-sm h-9 px-4 text-sm rounded-md transition-all">
@@ -245,13 +245,13 @@ export const Websites: React.FC = () => {
               <Globe className="h-8 w-8 text-textSecondary" />
             </div>
             <div className="space-y-2">
-              <p className="text-base font-semibold text-textPrimary">No knowledge sources yet</p>
+              <p className="text-base font-semibold text-textPrimary">No knowledge bases yet</p>
               <p className="text-sm text-textSecondary max-w-sm mx-auto leading-relaxed">
                 Connect your first website to start indexing pages and extracting insights.
               </p>
             </div>
             <Button onClick={() => setIsAddModalOpen(true)} className="bg-primary hover:bg-primary/90 text-white text-sm font-medium px-5 h-9 rounded-md shadow-sm">
-              Add Knowledge Source
+              Add Knowledge Base
             </Button>
           </CardContent>
         </Card>
@@ -259,6 +259,15 @@ export const Websites: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {websites.map((w) => {
             const friendlyName = getFriendlyName(w.url);
+            
+            const getChatButtonState = (w: Website) => {
+              if (w.status === 'CRAWLING' || w.status === 'PENDING') return { disabled: true, reason: 'Embedding in progress...' };
+              if (w.status === 'FAILED') return { disabled: true, reason: 'Sync failed' };
+              if (w.chunksCreated === 0) return { disabled: true, reason: 'No embeddings generated yet' };
+              return { disabled: false, reason: '' };
+            };
+            const chatState = getChatButtonState(w);
+            
             return (
               <Card 
                 key={w.id}
@@ -299,32 +308,46 @@ export const Websites: React.FC = () => {
                   </div>
 
                   {/* Bottom Action buttons */}
-                  <div className="flex items-center justify-between pt-3 mt-2 border-t border-border/50" onClick={e => e.stopPropagation()}>
-                    <span className="text-[10px] text-textSecondary flex items-center">
-                      <Clock className="h-3 w-3 mr-1" />
-                      Updated just now
+                  <div className="flex flex-col gap-2 mt-2 pt-3 border-t border-border/50" onClick={e => e.stopPropagation()}>
+                    <span className="text-[10px] text-textSecondary flex items-center justify-between">
+                      <span className="flex items-center"><Clock className="h-3 w-3 mr-1" /> Updated just now</span>
                     </span>
 
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center w-full gap-2">
+                      {chatState.disabled ? (
+                        <div className="text-xs text-textSecondary flex-1 text-center py-1.5 bg-secondary rounded border border-border/50 font-medium">
+                          {chatState.reason}
+                        </div>
+                      ) : (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={(e) => { e.stopPropagation(); navigate(`/websites/${w.id}/chat`); }}
+                          className="flex-1 h-8 text-xs bg-primary hover:bg-primary/90 text-white shadow-sm rounded font-medium"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
+                          Open AI Assistant
+                        </Button>
+                      )}
+                      
                       <Button
                         variant="ghost"
                         size="sm"
                         disabled={refreshingIds[w.id] || w.status === 'CRAWLING'}
                         onClick={(e) => { e.stopPropagation(); handleRefresh(w.id); }}
-                        className="h-7 text-xs text-textSecondary hover:text-textPrimary hover:bg-secondary px-2"
+                        className="h-8 w-8 p-0 flex items-center justify-center text-textSecondary hover:text-textPrimary hover:bg-secondary shrink-0"
+                        title="Refresh"
                       >
-                        <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", refreshingIds[w.id] && "animate-spin")} />
-                        Sync
+                        <RefreshCw className={cn("h-4 w-4", refreshingIds[w.id] && "animate-spin")} />
                       </Button>
                       <Button
-                        variant="primary"
+                        variant="ghost"
                         size="sm"
-                        disabled={w.status !== 'CRAWLED'}
-                        onClick={(e) => { e.stopPropagation(); navigate(`/chat?websiteId=${w.id}`); }}
-                        className="h-7 text-xs bg-primary hover:bg-primary/90 text-white px-3 shadow-sm rounded"
+                        onClick={(e) => { e.stopPropagation(); handleDelete(w.id); }}
+                        className="h-8 w-8 p-0 flex items-center justify-center text-danger hover:text-danger hover:bg-danger/10 shrink-0"
+                        title="Delete"
                       >
-                        <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
-                        Chat
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>

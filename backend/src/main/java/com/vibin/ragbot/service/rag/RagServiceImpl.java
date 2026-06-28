@@ -74,7 +74,7 @@ public class RagServiceImpl implements RagService {
         }
 
         // 2. Perform similarity search
-        int limit = request.getTopK() != null && request.getTopK() > 0 ? request.getTopK() : 5;
+        int limit = request.getTopK() != null && request.getTopK() > 0 ? request.getTopK() : 8;
         double threshold = request.getMinSimilarity() != null ? request.getMinSimilarity() : SIMILARITY_THRESHOLD;
 
         SearchRequest searchRequest = SearchRequest.builder()
@@ -223,7 +223,7 @@ public class RagServiceImpl implements RagService {
         List<ChatMessage> history = chatHistories.computeIfAbsent(request.getSessionId(), k -> new ArrayList<>());
 
         // 2. Perform similarity search using the latest message as the query
-        int limit = request.getTopK() != null && request.getTopK() > 0 ? request.getTopK() : 5;
+        int limit = request.getTopK() != null && request.getTopK() > 0 ? request.getTopK() : 8;
         double threshold = request.getMinSimilarity() != null ? request.getMinSimilarity() : SIMILARITY_THRESHOLD;
 
         SearchRequest searchRequest = SearchRequest.builder()

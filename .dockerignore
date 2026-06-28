@@ -6,7 +6,6 @@
 **/dist
 **/target
 **/build
-**/.mvn
 **/.gradle
 **/coverage
 **/*.log

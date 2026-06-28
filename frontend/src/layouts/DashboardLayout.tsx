@@ -4,13 +4,11 @@ import {
   LayoutDashboard, 
   Globe, 
   Search, 
-  Award, 
   Menu, 
   X, 
   ChevronLeft, 
   ChevronRight,
   Sparkles,
-  Settings,
   User,
   Moon
 } from 'lucide-react';
@@ -41,14 +39,6 @@ export const DashboardLayout: React.FC = () => {
       items: [
         { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { to: '/websites', label: 'Knowledge Bases', icon: Globe },
-      ]
-    },
-    {
-      group: 'Tools',
-      items: [
-        { to: '/search', label: 'Search Playground', icon: Search },
-        { to: '/evaluate', label: 'Evaluation', icon: Award },
-        { to: '/settings', label: 'Settings', icon: Settings },
       ]
     }
   ];

@@ -18,7 +18,8 @@ import {
   ChevronUp,
   Database,
   X,
-  Globe
+  Globe,
+  Trash2
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -46,12 +47,7 @@ SyntaxHighlighter.registerLanguage('json', json);
 SyntaxHighlighter.registerLanguage('css', css);
 SyntaxHighlighter.registerLanguage('markdown', markdown);
 
-const SUGGESTED_QUESTIONS = [
-  "What is Spring Boot?",
-  "Explain reactive programming",
-  "What is Spring Security?",
-  "Summarize this website"
-];
+
 
 const getFriendlyName = (url: string): string => {
   try {
@@ -128,7 +124,7 @@ export const Chat: React.FC = () => {
 
   const [selectedPageType, setSelectedPageType] = useState<string>('');
   const [minSimilarity, setMinSimilarity] = useState<number>(0.35);
-  const [topK, setTopK] = useState<number>(4);
+  const [topK, setTopK] = useState<number>(8);
   
   const [showConfig, setShowConfig] = useState(false);
   const [thinkingPhase, setThinkingPhase] = useState(0);
@@ -266,6 +262,15 @@ export const Chat: React.FC = () => {
     setExpandedDetails(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const handleClearChat = () => {
+    if (!website) return;
+    if (window.confirm("Clear conversation? This will permanently remove the conversation history for this knowledge base.")) {
+      chatStore.clearSession(website.id);
+      setMessages([]);
+      setSessionId(`session-${website.id}-${Date.now()}`);
+    }
+  };
+
   const thinkingMessages = [
     "Searching knowledge base...",
     "Analyzing context...",
@@ -299,6 +304,16 @@ export const Chat: React.FC = () => {
               <span>{website.pagesCrawled} Pages</span>
               <span>&bull;</span>
               <span>{website.chunksCreated} Chunks</span>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleClearChat}
+                className="text-textSecondary hover:text-red-500 hover:bg-red-500/10 text-[11px] h-6 px-2 ml-2"
+                title="Clear Chat"
+              >
+                <Trash2 className="h-3 w-3 md:mr-1.5" />
+                <span className="hidden md:inline">Clear Chat</span>
+              </Button>
             </div>
             <div className="flex items-center gap-1 mt-1 opacity-70 text-[10px]">
                Using Qwen 2.5 + Nomic
@@ -327,27 +342,35 @@ export const Chat: React.FC = () => {
         <div className="flex-1 overflow-y-auto px-4 md:px-0 bg-background relative">
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center max-w-2xl mx-auto text-center py-8 animate-fade-in px-4">
-              <div className="h-12 w-12 rounded-full bg-secondary flex items-center justify-center shrink-0 mb-6 border border-border">
-                <Sparkles className="h-6 w-6 text-textSecondary" />
-              </div>
-              <div className="space-y-3 mb-8">
-                <h3 className="text-2xl font-semibold text-textPrimary tracking-tight">How can I help you today?</h3>
-                <p className="text-sm text-textSecondary max-w-md mx-auto">
-                  Ask me anything about {getFriendlyName(website.url)}.
-                </p>
+              <div className="mb-8 p-6 bg-card border border-border rounded-xl w-full max-w-md text-left">
+                <h2 className="text-xl font-bold text-textPrimary mb-1">{getFriendlyName(website.url)}</h2>
+                <a href={website.url} target="_blank" rel="noreferrer" className="text-primary hover:underline text-sm mb-4 block truncate">{website.url}</a>
+                
+                <div className="flex flex-col gap-3 text-sm text-textSecondary mt-4 border-t border-border pt-4">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">Status</span> 
+                    <Badge variant="success" className="text-[10px] h-5"><Check className="h-3 w-3 mr-1" /> {website.status}</Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">Indexed Pages</span> 
+                    <span>{website.pagesCrawled || 0}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">Chunks</span> 
+                    <span>{website.chunksCreated || 0}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">Embeddings</span> 
+                    <span>{website.chunksCreated || 0}</span>
+                  </div>
+                </div>
               </div>
 
-              <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-3 max-w-xl">
-                {SUGGESTED_QUESTIONS.map((q) => (
-                  <button
-                    key={q}
-                    onClick={() => handleSendMessage(q)}
-                    className="text-left text-sm bg-card border border-border p-4 rounded-xl hover:shadow-sm hover:border-border/80 transition-all flex items-center justify-between group"
-                  >
-                    <span className="truncate text-textSecondary group-hover:text-textPrimary font-medium">{q}</span>
-                    <ChevronRight className="h-4 w-4 text-border group-hover:text-textSecondary shrink-0 transition-colors" />
-                  </button>
-                ))}
+              <div className="space-y-2 mt-4">
+                <h3 className="text-xl font-semibold text-textPrimary tracking-tight">Start a conversation</h3>
+                <p className="text-sm text-textSecondary max-w-md mx-auto">
+                  Ask anything about this documentation.
+                </p>
               </div>
             </div>
           ) : (

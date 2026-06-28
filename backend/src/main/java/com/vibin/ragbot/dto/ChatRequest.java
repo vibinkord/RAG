@@ -28,5 +28,5 @@ public class ChatRequest {
     private Double minSimilarity; // Optional: similarity threshold
 
     @Builder.Default
-    private Integer topK = 5;
+    private Integer topK = 8;
 }

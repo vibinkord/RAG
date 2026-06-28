@@ -5,7 +5,6 @@ build
 .idea
 .vscode
 *.log
-.mvn
 .gradle
 .DS_Store
 *.class

@@ -25,5 +25,5 @@ public class AnswerRequest {
     private String question;
 
     @Builder.Default
-    private Integer topK = 5;
+    private Integer topK = 8;
 }

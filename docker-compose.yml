@@ -20,54 +20,6 @@ services:
     networks:
       - ragbot-network
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ragbot-ollama
-
-    ports:
-      - "11434:11434"
-
-    volumes:
-      - ollama_data:/root/.ollama
-
-    # GPU support
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities:
-                - gpu
-
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
-
-    networks:
-      - ragbot-network
-
-  # Initialization container to pull required models into Ollama
-  ollama-pull:
-    image: curlimages/curl:latest
-    container_name: ragbot-ollama-pull
-    depends_on:
-      ollama:
-        condition: service_healthy
-    command: >
-      sh -c "
-        echo 'Pulling qwen2.5:7b...' &&
-        curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"qwen2.5:7b\"}' &&
-        echo 'Pulling nomic-embed-text...' &&
-        curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"nomic-embed-text\"}' &&
-        echo 'Done!'
-      "
-    networks:
-      - ragbot-network
-
   backend:
     build:
       context: ./backend
@@ -79,12 +31,10 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ragbot}
       - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-postgres}
       - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-      - SPRING_AI_OLLAMA_BASE_URL=http://ollama:11434
-      - OLLAMA_BASE_URL=http://ollama:11434
+      - SPRING_AI_OLLAMA_BASE_URL=https://xxxx.ngrok-free.app
+      - OLLAMA_BASE_URL=https://xxxx.ngrok-free.app
     depends_on:
       postgres:
-        condition: service_healthy
-      ollama:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/test/ping"]
@@ -113,4 +63,3 @@ networks:
 
 volumes:
   postgres_data:
-  ollama_data:

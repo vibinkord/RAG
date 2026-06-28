@@ -53,6 +53,14 @@ public class WebsiteService {
                 .pagesCrawled(0)
                 .chunksCreated(0)
                 .createdAt(LocalDateTime.now())
+                .maxPages(request.getMaxPages())
+                .maxDepth(request.getMaxDepth())
+                .crawlDelayMs(request.getCrawlDelayMs())
+                .respectRobots(request.getRespectRobots())
+                .sameDomainOnly(request.getSameDomainOnly())
+                .excludeQueryParameters(request.getExcludeQueryParameters())
+                .followExternalLinks(request.getFollowExternalLinks())
+                .crawlMode(request.getCrawlMode())
                 .build();
 
         Website savedWebsite = websiteRepository.save(newWebsite);

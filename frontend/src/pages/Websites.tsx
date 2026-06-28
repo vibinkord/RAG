@@ -60,11 +60,23 @@ export const Websites: React.FC = () => {
   const [websites, setWebsites] = useState<Website[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newUrl, setNewUrl] = useState('');
+  
+  // Advanced configuration state
+  const [crawlMode, setCrawlMode] = useState('QUICK');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [maxPages, setMaxPages] = useState<number>(50);
+  const [maxDepth, setMaxDepth] = useState<number>(4);
+  const [crawlDelayMs, setCrawlDelayMs] = useState<number>(100);
+  const [respectRobots, setRespectRobots] = useState<boolean>(true);
+  const [sameDomainOnly, setSameDomainOnly] = useState<boolean>(true);
+  const [excludeQueryParameters, setExcludeQueryParameters] = useState<boolean>(true);
+  
   const [addLoading, setAddLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [urlValidationError, setUrlValidationError] = useState<string | null>(null);
   const [refreshingIds, setRefreshingIds] = useState<Record<number, boolean>>({});
   const [selectedWebsite, setSelectedWebsite] = useState<Website | null>(null);
+  const [progressData, setProgressData] = useState<Record<number, import('../types').CrawlProgress>>({});
 
   const loadWebsites = () => {
     const list = websiteStore.getWebsites();
@@ -85,6 +97,15 @@ export const Websites: React.FC = () => {
   }, [websites, selectedWebsite]);
 
   useEffect(() => {
+    switch(crawlMode) {
+      case 'QUICK': setMaxPages(50); setMaxDepth(4); break;
+      case 'STANDARD': setMaxPages(500); setMaxDepth(8); break;
+      case 'DEEP': setMaxPages(2000); setMaxDepth(15); break;
+      case 'ENTIRE': setMaxPages(0); setMaxDepth(100); break;
+    }
+  }, [crawlMode]);
+
+  useEffect(() => {
     const pollInterval = setInterval(async () => {
       let updatedAny = false;
       const list = websiteStore.getWebsites();
@@ -92,6 +113,25 @@ export const Websites: React.FC = () => {
       for (const w of list) {
         if (w.status === 'PENDING' || w.status === 'CRAWLING') {
           try {
+            // First try to get live progress if it's crawling
+            if (w.status === 'CRAWLING') {
+              try {
+                const progress = await apiService.getCrawlProgress(w.id);
+                setProgressData(prev => ({ ...prev, [w.id]: progress }));
+                if (progress.status && progress.status !== w.status) {
+                  websiteStore.updateWebsite(w.id, {
+                    status: progress.status as import('../types').CrawlStatus,
+                    pagesCrawled: progress.pagesCrawled,
+                    chunksCreated: progress.chunksCreated
+                  });
+                  updatedAny = true;
+                }
+              } catch (e) {
+                // Ignore progress error, maybe it just started or finished
+              }
+            }
+
+            // Always poll the database status to be sure
             const crawl: IngestionResponse = await apiService.getCrawlStatus(w.id);
             if (crawl.status !== w.status || crawl.pagesCrawled !== w.pagesCrawled || crawl.chunksCreated !== w.chunksCreated) {
               websiteStore.updateWebsite(w.id, {
@@ -142,7 +182,22 @@ export const Websites: React.FC = () => {
         cleanUrl = 'https://' + cleanUrl;
       }
       
-      const res = await apiService.ingestWebsite(cleanUrl);
+      const payload: any = {
+        url: cleanUrl,
+        crawlMode
+      };
+      
+      if (showAdvanced) {
+        payload.maxPages = maxPages;
+        payload.maxDepth = maxDepth;
+        payload.crawlDelayMs = crawlDelayMs;
+        payload.respectRobots = respectRobots;
+        payload.sameDomainOnly = sameDomainOnly;
+        payload.excludeQueryParameters = excludeQueryParameters;
+        payload.followExternalLinks = !sameDomainOnly;
+      }
+
+      const res = await apiService.ingestWebsite(payload);
       websiteStore.addWebsite(cleanUrl, res.id);
       loadWebsites();
       
@@ -297,6 +352,26 @@ export const Websites: React.FC = () => {
 
                   {/* Mid: Stats */}
                   <div className="flex flex-col gap-2 mt-4 text-xs text-textSecondary">
+                    {w.status === 'CRAWLING' && progressData[w.id] ? (
+                      <div className="space-y-2 mb-2">
+                        <div className="flex justify-between items-center text-[10px] font-medium text-textPrimary">
+                          <span>Progress</span>
+                          <span>{progressData[w.id].pagesCrawled} / {progressData[w.id].pagesDiscovered} pages</span>
+                        </div>
+                        <div className="w-full bg-secondary rounded-full h-1.5 overflow-hidden">
+                          <div 
+                            className="bg-primary h-1.5 rounded-full transition-all duration-500 ease-in-out" 
+                            style={{ width: `${Math.max(5, Math.min(100, (progressData[w.id].pagesCrawled / Math.max(1, progressData[w.id].pagesDiscovered)) * 100))}%` }}
+                          ></div>
+                        </div>
+                        {progressData[w.id].estimatedRemainingSeconds > 0 && (
+                          <div className="text-[10px] text-textSecondary text-right">
+                            ~{Math.ceil(progressData[w.id].estimatedRemainingSeconds / 60)} min remaining
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                    
                     <div className="flex items-center justify-between py-1 border-b border-border/50">
                       <span className="flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" /> Indexed Pages</span>
                       <span className="font-medium text-textPrimary">{w.pagesCrawled}</span>
@@ -523,6 +598,72 @@ export const Websites: React.FC = () => {
             <p className="text-xs text-textSecondary leading-normal mt-2">
               RAGBot will scan the pages matching this prefix to extract text segments.
             </p>
+          </div>
+
+          <div className="space-y-3">
+            <label className="text-sm font-medium text-textPrimary">Crawl Mode</label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { id: 'QUICK', name: 'Quick', desc: '~50 pages' },
+                { id: 'STANDARD', name: 'Standard', desc: '~500 pages' },
+                { id: 'DEEP', name: 'Deep', desc: '~2000 pages' },
+                { id: 'ENTIRE', name: 'Entire Website', desc: 'Unlimited' },
+              ].map(mode => (
+                <div 
+                  key={mode.id}
+                  onClick={() => setCrawlMode(mode.id)}
+                  className={`border rounded-md p-3 cursor-pointer transition-colors ${crawlMode === mode.id ? 'border-primary bg-primary/5' : 'border-border bg-card hover:bg-secondary'}`}
+                >
+                  <div className="text-sm font-semibold text-textPrimary">{mode.name}</div>
+                  <div className="text-xs text-textSecondary mt-0.5">{mode.desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="border border-border rounded-md overflow-hidden bg-card">
+            <div 
+              className="px-4 py-3 bg-secondary/50 flex justify-between items-center cursor-pointer select-none"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+            >
+              <span className="text-sm font-medium text-textPrimary">Advanced Settings</span>
+              <ChevronRight className={`h-4 w-4 text-textSecondary transition-transform ${showAdvanced ? 'rotate-90' : ''}`} />
+            </div>
+            
+            {showAdvanced && (
+              <div className="p-4 space-y-4 border-t border-border">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-textSecondary">Max Pages</label>
+                    <Input type="number" min={0} value={maxPages} onChange={e => setMaxPages(Number(e.target.value))} className="h-8 text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-textSecondary">Max Depth</label>
+                    <Input type="number" min={1} value={maxDepth} onChange={e => setMaxDepth(Number(e.target.value))} className="h-8 text-sm" />
+                  </div>
+                </div>
+                
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-textSecondary">Crawl Delay (ms)</label>
+                  <Input type="number" min={0} value={crawlDelayMs} onChange={e => setCrawlDelayMs(Number(e.target.value))} className="h-8 text-sm" />
+                </div>
+                
+                <div className="space-y-2 pt-2">
+                  <label className="flex items-center space-x-2 text-sm cursor-pointer">
+                    <input type="checkbox" checked={respectRobots} onChange={e => setRespectRobots(e.target.checked)} className="rounded border-border text-primary focus:ring-primary h-4 w-4" />
+                    <span className="text-textPrimary">Respect robots.txt rules</span>
+                  </label>
+                  <label className="flex items-center space-x-2 text-sm cursor-pointer">
+                    <input type="checkbox" checked={sameDomainOnly} onChange={e => setSameDomainOnly(e.target.checked)} className="rounded border-border text-primary focus:ring-primary h-4 w-4" />
+                    <span className="text-textPrimary">Restrict to same domain only</span>
+                  </label>
+                  <label className="flex items-center space-x-2 text-sm cursor-pointer">
+                    <input type="checkbox" checked={excludeQueryParameters} onChange={e => setExcludeQueryParameters(e.target.checked)} className="rounded border-border text-primary focus:ring-primary h-4 w-4" />
+                    <span className="text-textPrimary">Exclude URL Query Parameters (?id=1)</span>
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
 
           {errorMsg && (

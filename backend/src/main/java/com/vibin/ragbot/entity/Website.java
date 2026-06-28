@@ -53,6 +53,30 @@ public class Website {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "max_pages")
+    private Integer maxPages;
+
+    @Column(name = "max_depth")
+    private Integer maxDepth;
+
+    @Column(name = "crawl_delay_ms")
+    private Long crawlDelayMs;
+
+    @Column(name = "respect_robots")
+    private Boolean respectRobots;
+
+    @Column(name = "same_domain_only")
+    private Boolean sameDomainOnly;
+
+    @Column(name = "exclude_query_parameters")
+    private Boolean excludeQueryParameters;
+
+    @Column(name = "follow_external_links")
+    private Boolean followExternalLinks;
+
+    @Column(name = "crawl_mode")
+    private String crawlMode;
+
     @OneToMany(mappedBy = "website", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     @ToString.Exclude

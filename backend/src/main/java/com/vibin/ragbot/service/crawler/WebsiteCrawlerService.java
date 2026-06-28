@@ -1,5 +1,7 @@
 package com.vibin.ragbot.service.crawler;
 
+import com.vibin.ragbot.config.CrawlerProperties;
+import com.vibin.ragbot.dto.CrawlProgress;
 import com.vibin.ragbot.dto.CrawlTask;
 import com.vibin.ragbot.entity.CrawlStatus;
 import com.vibin.ragbot.entity.Page;
@@ -38,9 +40,9 @@ public class WebsiteCrawlerService {
     private final TextChunkingService textChunkingService;
     private final TransactionTemplate transactionTemplate;
     private final com.vibin.ragbot.service.embedding.EmbeddingGenerationService embeddingGenerationService;
+    private final CrawlerProperties crawlerProperties;
+    private final CrawlProgressTracker progressTracker;
 
-    private static final int MAX_DEPTH = 3;
-    private static final int MAX_PAGES = 50;
     private static final int TIMEOUT_MS = 10000;
 
     @Async
@@ -49,46 +51,89 @@ public class WebsiteCrawlerService {
             Website website = websiteRepository.findById(websiteId)
                     .orElseThrow(() -> new IllegalArgumentException("Website not found"));
             log.info("STEP 1 - Website loaded");
-            
+
             website.setStatus(CrawlStatus.CRAWLING);
             websiteRepository.save(website);
             log.info("STEP 2 - Status changed to CRAWLING");
 
             String baseUrl = DomainValidator.normalizeUrl(startUrl);
             log.info("STEP 3 - Base URL = {}", baseUrl);
+
+            // Determine config
+            int maxPages = website.getMaxPages() != null ? website.getMaxPages() : crawlerProperties.getMaxPages();
+            int maxDepth = website.getMaxDepth() != null ? website.getMaxDepth() : crawlerProperties.getMaxDepth();
+            long crawlDelayMs = website.getCrawlDelayMs() != null ? website.getCrawlDelayMs() : crawlerProperties.getCrawlDelayMs();
+            boolean respectRobots = website.getRespectRobots() != null ? website.getRespectRobots() : crawlerProperties.isRespectRobots();
+            boolean sameDomainOnly = website.getSameDomainOnly() != null ? website.getSameDomainOnly() : crawlerProperties.isSameDomainOnly();
+            boolean excludeQueryParameters = website.getExcludeQueryParameters() != null ? website.getExcludeQueryParameters() : crawlerProperties.isExcludeQueryParameters();
+            boolean followExternalLinks = website.getFollowExternalLinks() != null ? website.getFollowExternalLinks() : false;
             
+            if (website.getCrawlMode() != null) {
+                switch (website.getCrawlMode().toUpperCase()) {
+                    case "QUICK": maxPages = 50; maxDepth = 4; break;
+                    case "STANDARD": maxPages = 500; maxDepth = 8; break;
+                    case "DEEP": maxPages = 2000; maxDepth = 15; break;
+                    case "ENTIRE": maxPages = 0; maxDepth = 100; break; // 0 = unlimited
+                }
+            }
+
+            log.info("Config for {}: mode={}, maxPages={}, maxDepth={}", baseUrl, website.getCrawlMode(), maxPages, maxDepth);
+
+            progressTracker.init(websiteId);
+            long startTimeMs = System.currentTimeMillis();
+
             log.info("STEP 4 - Creating BFS queue");
             Queue<CrawlTask> queue = new LinkedList<>();
             Set<String> visitedUrls = new HashSet<>();
             List<String> crawledUrls = new ArrayList<>();
             List<Page> newPagesList = new ArrayList<>();
-            
+
             queue.add(new CrawlTask(baseUrl, 0));
-            
+
             try {
-                while (!queue.isEmpty() && crawledUrls.size() < MAX_PAGES) {
+                while (!queue.isEmpty() && (maxPages == 0 || crawledUrls.size() < maxPages)) {
                     CrawlTask currentTask = queue.poll();
                     String currentUrl = currentTask.getUrl();
                     int currentDepth = currentTask.getDepth();
-                    
+
+                    if (excludeQueryParameters && currentUrl.contains("?")) {
+                        currentUrl = currentUrl.substring(0, currentUrl.indexOf("?"));
+                    }
+
                     if (visitedUrls.contains(currentUrl)) {
                         continue;
                     }
                     
+                    boolean ignored = false;
+                    for (String pattern : crawlerProperties.getIgnoreUrls()) {
+                        if (currentUrl.matches(pattern)) {
+                            ignored = true;
+                            break;
+                        }
+                    }
+                    if (ignored) {
+                        visitedUrls.add(currentUrl);
+                        continue;
+                    }
+
                     visitedUrls.add(currentUrl);
 
                     log.info("STEP 5 - Robots check {}", currentUrl);
-                    if (!robotsTxtService.isAllowed(currentUrl)) {
+                    if (respectRobots && !robotsTxtService.isAllowed(currentUrl)) {
                         log.info("URL is disallowed by robots.txt: {}", currentUrl);
                         continue;
                     }
                     log.info("STEP 6 - Robots allowed");
-                    
+
                     try {
+                        if (crawlDelayMs > 0) {
+                            Thread.sleep(crawlDelayMs);
+                        }
+                        
                         int attempts = 0;
                         org.jsoup.nodes.Document jsoupDoc = null;
                         String finalUrl = currentUrl;
-                        
+
                         while (attempts < 3) {
                             attempts++;
                             try {
@@ -100,54 +145,47 @@ public class WebsiteCrawlerService {
                                         .followRedirects(true)
                                         .ignoreHttpErrors(true)
                                         .execute();
-                                
+
                                 int statusCode = response.statusCode();
                                 log.info("STEP 8 - Response {}", statusCode);
-                                
+
                                 if (statusCode >= 400) {
                                     throw new HttpStatusException("HTTP error fetching URL", statusCode, currentUrl);
                                 }
-                                
+
                                 jsoupDoc = response.parse();
                                 finalUrl = DomainValidator.normalizeUrl(response.url().toString());
-                                break; // Success, exit retry loop
+                                if (excludeQueryParameters && finalUrl.contains("?")) {
+                                    finalUrl = finalUrl.substring(0, finalUrl.indexOf("?"));
+                                }
+                                break;
                             } catch (HttpStatusException e) {
                                 log.warn("HTTP status error on attempt {} for URL {}: Status {}", attempts, currentUrl, e.getStatusCode());
-                                if (attempts >= 3) {
-                                    throw e;
-                                }
+                                if (attempts >= 3) throw e;
                             } catch (SocketTimeoutException e) {
                                 log.warn("Timeout on attempt {} for URL {}: {}", attempts, currentUrl, e.getMessage());
-                                if (attempts >= 3) {
-                                    throw e;
-                                }
+                                if (attempts >= 3) throw e;
                             } catch (IOException e) {
                                 log.warn("IO error on attempt {} for URL {}: {}", attempts, currentUrl, e.getMessage());
-                                if (attempts >= 3) {
-                                    throw e;
-                                }
+                                if (attempts >= 3) throw e;
                             }
                         }
-                        
-                        // If redirected to another URL that was already visited in this session, skip.
+
                         if (!finalUrl.equals(currentUrl) && visitedUrls.contains(finalUrl)) {
-                            log.info("Final URL already visited: {}", finalUrl);
                             continue;
                         }
                         visitedUrls.add(finalUrl);
 
-                        log.info("STEP 5 - Robots check {}", finalUrl);
-                        if (!robotsTxtService.isAllowed(finalUrl)) {
-                            log.info("Final URL is disallowed by robots.txt: {}", finalUrl);
+                        log.info("STEP 5 - Robots check final {}", finalUrl);
+                        if (respectRobots && !robotsTxtService.isAllowed(finalUrl)) {
                             continue;
                         }
-                        log.info("STEP 6 - Robots allowed");
+                        log.info("STEP 6 - Robots allowed final");
 
-                        ExtractedContent extracted = contentExtractorService.extract(jsoupDoc, baseUrl);
+                        ExtractedContent extracted = contentExtractorService.extract(jsoupDoc, baseUrl, sameDomainOnly, followExternalLinks);
                         log.info("STEP 9 - Extracted text length {}", extracted.cleanText().length());
-                        
+
                         if (extracted.cleanText().trim().isEmpty()) {
-                            log.warn("Empty content for URL: {}", finalUrl);
                             continue;
                         }
 
@@ -157,81 +195,88 @@ public class WebsiteCrawlerService {
                         pageEntity.setContent(extracted.cleanText());
                         newPagesList.add(pageEntity);
                         log.info("STEP 10 - Page added");
-                        
+
                         crawledUrls.add(finalUrl);
-                        
-                        if (currentDepth < MAX_DEPTH) {
+
+                        if (currentDepth < maxDepth) {
                             for (String link : extracted.internalLinks()) {
+                                if (excludeQueryParameters && link.contains("?")) {
+                                    link = link.substring(0, link.indexOf("?"));
+                                }
                                 if (!visitedUrls.contains(link)) {
                                     queue.add(new CrawlTask(link, currentDepth + 1));
                                 }
                             }
                         }
-                        
-                    } catch (HttpStatusException e) {
-                        log.error("HTTP error fetching URL (Broken Link) after 3 attempts: {} - Status: {}", currentUrl, e.getStatusCode());
-                    } catch (SocketTimeoutException e) {
-                        log.error("Timeout fetching URL after 3 attempts: {}", currentUrl);
-                    } catch (IOException e) {
-                        log.error("Failed to crawl URL after 3 attempts: {} - {}", currentUrl, e.getMessage());
-                    } catch (IllegalArgumentException e) {
-                        log.error("Invalid URL format: {}", currentUrl);
+
+                        long elapsedMs = System.currentTimeMillis() - startTimeMs;
+                        long elapsedSec = elapsedMs / 1000;
+                        int pagesCrawledCount = crawledUrls.size();
+                        long estRemaining = 0;
+                        if (pagesCrawledCount > 0) {
+                            long msPerPage = elapsedMs / pagesCrawledCount;
+                            estRemaining = (queue.size() * msPerPage) / 1000;
+                        }
+
+                        progressTracker.updateProgress(websiteId, CrawlProgress.builder()
+                                .status("CRAWLING")
+                                .pagesDiscovered(visitedUrls.size() + queue.size())
+                                .pagesCrawled(pagesCrawledCount)
+                                .pagesRemaining(queue.size())
+                                .chunksCreated(0)
+                                .embeddingsGenerated(0)
+                                .elapsedSeconds(elapsedSec)
+                                .estimatedRemainingSeconds(estRemaining)
+                                .build());
+
+                    } catch (Exception e) {
+                        log.error("Failed to crawl URL: {} - {}", currentUrl, e.getMessage());
                     }
                 }
-                
+
                 log.info("Crawl completed in memory. Crawled {} pages. Saving atomic transaction...", crawledUrls.size());
-                
+
                 log.info("STEP 11 - Transaction start");
                 transactionTemplate.executeWithoutResult(status -> {
                     Website currentWebsite = websiteRepository.findById(websiteId)
                             .orElseThrow(() -> new IllegalArgumentException("Website not found"));
-                    
-                    // Clear old pages and trigger orphan removal
+
                     currentWebsite.getPages().clear();
                     websiteRepository.saveAndFlush(currentWebsite);
-                    
-                    // Set website association and synchronize bidirectional relationship
+
                     for (Page pageEntity : newPagesList) {
                         pageEntity.setWebsite(currentWebsite);
                         currentWebsite.getPages().add(pageEntity);
                     }
-                    
-                    log.info("Pages collected in memory: {}", newPagesList.size());
-                    log.info("Saving pages to database...");
-                    
+
                     log.info("STEP 12 - Saving {} pages", newPagesList.size());
-                    List<Page> savedPages = pageRepository.saveAll(newPagesList);
+                    pageRepository.saveAll(newPagesList);
                     pageRepository.flush();
                     log.info("STEP 13 - Saved pages");
-                    
-                    log.info("Saved pages count: {}", savedPages.size());
-                    
-                    log.info(
-                        "Database page count for website {} = {}",
-                        websiteId,
-                        pageRepository.findByWebsiteId(websiteId).size()
-                    );
-                    
-                    // Generate chunks for the new pages
+
                     log.info("STEP 14 - Chunking start");
-                    log.info("Generating chunks automatically for websiteId: {}", websiteId);
                     int totalChunks = textChunkingService.processAllPages(websiteId);
                     log.info("STEP 15 - Chunk count {}", totalChunks);
-                    
+
                     currentWebsite.setChunksCreated(totalChunks);
                     currentWebsite.setPagesCrawled(newPagesList.size());
                     currentWebsite.setStatus(CrawlStatus.CRAWLED);
                     websiteRepository.save(currentWebsite);
                     log.info("STEP 16 - Status changed to CRAWLED");
+                    
+                    CrawlProgress currentProgress = progressTracker.getProgress(websiteId);
+                    if (currentProgress != null) {
+                        currentProgress.setChunksCreated(totalChunks);
+                        progressTracker.updateProgress(websiteId, currentProgress);
+                    }
                 });
-                
+
                 log.info("Transaction committed. Starting embedding generation for website {}", websiteId);
-                // Trigger embedding generation automatically
                 embeddingGenerationService.startEmbeddingGeneration(websiteId);
-                
-                log.info("Crawling and chunking completed. Crawled {} pages and created chunks from {}", crawledUrls.size(), baseUrl);
+
+                log.info("Crawling and chunking completed.");
                 return CompletableFuture.completedFuture(crawledUrls);
-                
+
             } catch (Exception e) {
                 log.error("Fatal error during crawling for websiteId {}: {}", websiteId, e.getMessage());
                 try {

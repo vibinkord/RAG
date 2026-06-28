@@ -37,4 +37,13 @@ public class WebsiteController {
         IngestionResponse response = websiteService.refreshWebsite(id);
         return ResponseEntity.ok(response);
     }
+
+    @org.springframework.web.bind.annotation.GetMapping("/{id}/progress")
+    public ResponseEntity<com.vibin.ragbot.dto.CrawlProgress> getProgress(@PathVariable Long id, @org.springframework.beans.factory.annotation.Autowired com.vibin.ragbot.service.crawler.CrawlProgressTracker crawlProgressTracker) {
+        com.vibin.ragbot.dto.CrawlProgress progress = crawlProgressTracker.getProgress(id);
+        if (progress == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(progress);
+    }
 }

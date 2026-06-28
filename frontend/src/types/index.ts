@@ -7,6 +7,25 @@ export interface Website {
   pagesCrawled: number;
   chunksCreated: number;
   createdAt?: string;
+  maxPages?: number;
+  maxDepth?: number;
+  crawlDelayMs?: number;
+  respectRobots?: boolean;
+  sameDomainOnly?: boolean;
+  excludeQueryParameters?: boolean;
+  followExternalLinks?: boolean;
+  crawlMode?: string;
+}
+
+export interface CrawlProgress {
+  status: string;
+  pagesDiscovered: number;
+  pagesCrawled: number;
+  pagesRemaining: number;
+  chunksCreated: number;
+  embeddingsGenerated: number;
+  elapsedSeconds: number;
+  estimatedRemainingSeconds: number;
 }
 
 export interface Page {

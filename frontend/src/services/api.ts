@@ -56,13 +56,28 @@ export const telemetryStore = {
 
 export const apiService = {
   // Ingestion (Crawling)
-  ingestWebsite: async (url: string): Promise<IngestionResponse> => {
-    const response = await api.post<IngestionResponse>('/api/ingest', { url });
+  ingestWebsite: async (payload: { 
+    url: string;
+    crawlMode?: string;
+    maxPages?: number;
+    maxDepth?: number;
+    crawlDelayMs?: number;
+    respectRobots?: boolean;
+    sameDomainOnly?: boolean;
+    excludeQueryParameters?: boolean;
+    followExternalLinks?: boolean;
+  }): Promise<IngestionResponse> => {
+    const response = await api.post<IngestionResponse>('/api/websites', payload);
     return response.data;
   },
 
   getCrawlStatus: async (websiteId: number): Promise<IngestionResponse> => {
     const response = await api.get<IngestionResponse>(`/api/ingest/${websiteId}/status`);
+    return response.data;
+  },
+
+  getCrawlProgress: async (websiteId: number): Promise<import('../types').CrawlProgress> => {
+    const response = await api.get<import('../types').CrawlProgress>(`/api/websites/${websiteId}/progress`);
     return response.data;
   },
 

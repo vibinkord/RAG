@@ -34,9 +34,11 @@ public class ContentExtractorService {
      *
      * @param document the JSoup document to extract from
      * @param baseUrl the base website URL to match internal domain
+     * @param sameDomainOnly whether to restrict discovered links to the same domain
+     * @param followExternalLinks whether to extract external links (overrides sameDomainOnly)
      * @return the ExtractedContent record containing text and links
      */
-    public ExtractedContent extract(Document document, String baseUrl) {
+    public ExtractedContent extract(Document document, String baseUrl, boolean sameDomainOnly, boolean followExternalLinks) {
         if (document == null) {
             return new ExtractedContent("", "", Set.of());
         }
@@ -75,8 +77,10 @@ public class ContentExtractorService {
                 // Strip hash fragments
                 normalizedUrl = stripFragment(normalizedUrl);
 
-                if (isInternalLink(baseUrl, normalizedUrl) && !isBinaryResource(normalizedUrl)) {
-                    internalLinks.add(normalizedUrl);
+                if (!isBinaryResource(normalizedUrl)) {
+                    if (followExternalLinks || (!sameDomainOnly || isInternalLink(baseUrl, normalizedUrl))) {
+                        internalLinks.add(normalizedUrl);
+                    }
                 }
             }
         }

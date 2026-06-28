@@ -23,7 +23,7 @@ AWS EC2  (c7i-flex.large or similar)
 Local Machine  (your laptop)
   ├── Ollama          — port 11434
   │   ├── nomic-embed-text  (768-dim embeddings)
-  │   └── qwen2.5:7b        (chat / answer generation)
+  │   └── qwen2.5-coder:7b        (chat / answer generation)
   └── ngrok           — tunnels :11434 to a public HTTPS URL
 ```
 
@@ -68,10 +68,10 @@ Open a new terminal and pull both models:
 
 ```bash
 ollama pull nomic-embed-text
-ollama pull qwen2.5:7b
+ollama pull qwen2.5-coder:7b
 ```
 
-`nomic-embed-text` is small (~274 MB) and downloads quickly. `qwen2.5:7b` is ~4.7 GB — it will take a few minutes depending on your connection.
+`nomic-embed-text` is small (~274 MB) and downloads quickly. `qwen2.5-coder:7b` is ~4.7 GB — it will take a few minutes depending on your connection.
 
 Verify both are available:
 
@@ -79,7 +79,7 @@ Verify both are available:
 ollama list
 ```
 
-You should see both `nomic-embed-text` and `qwen2.5:7b` listed.
+You should see both `nomic-embed-text` and `qwen2.5-coder:7b` listed.
 
 ### Step 3 — Expose Ollama via ngrok
 

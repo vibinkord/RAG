@@ -97,7 +97,7 @@ public class RAGIntegrationTests {
             return res;
         });
 
-        Mockito.when(ollamaChatService.getModelName()).thenReturn("qwen2.5:7b");
+        Mockito.when(ollamaChatService.getModelName()).thenReturn("qwen2.5-coder:7b");
         Mockito.when(ollamaChatService.generateAnswer(anyString())).thenAnswer(invocation -> {
             String prompt = invocation.getArgument(0);
             if (prompt.contains("similarityScore")) {

@@ -31,8 +31,8 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ragbot}
       - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-postgres}
       - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-      - SPRING_AI_OLLAMA_BASE_URL=https://xxxx.ngrok-free.app
-      - OLLAMA_BASE_URL=https://xxxx.ngrok-free.app
+      - SPRING_AI_OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
     depends_on:
       postgres:
         condition: service_healthy

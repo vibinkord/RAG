@@ -19,7 +19,7 @@ public class OllamaChatService {
     @Value("${ollama.base-url}")
     private String ollamaApiUrl;
 
-    @Value("${ollama.chat.model:qwen2.5:7b}")
+    @Value("${ollama.chat.model:qwen2.5-coder:7b}")
     private String modelName;
 
     /**
